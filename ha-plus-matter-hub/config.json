@@ -1,37 +1,33 @@
 {
   "name": "HA Plus Matter Hub",
   "slug": "ha-plus-matter-hub",
-  "version": "dev",
+  "version": "1.1.1",
   "description": "Expose Home Assistant entities to Matter controllers such as Apple Home, Google Home, and Alexa.",
   "url": "https://github.com/zvikarp/ha-plus-matter-hub",
-
   "panel_icon": "mdi:hub",
   "panel_title": "Matter Hub",
-
   "homeassistant": "2024.1.0",
   "homeassistant_api": true,
-
   "host_network": true,
   "init": false,
-
-  "arch": ["aarch64", "amd64"],
-
+  "arch": [
+    "aarch64",
+    "amd64"
+  ],
   "ingress": true,
   "ingress_port": 0,
-
-  "map": ["addon_config:rw"],
-
+  "map": [
+    "addon_config:rw"
+  ],
   "options": {
     "app_log_level": "info",
     "disable_log_colors": false,
     "mdns_network_interface": ""
   },
-
   "schema": {
     "app_log_level": "list(silly|debug|info|notice|warn|error|fatal)",
     "disable_log_colors": "bool",
     "mdns_network_interface": "str?"
   },
-
   "image": "ghcr.io/zvikarp/ha-plus-matter-hub-addon"
 }
