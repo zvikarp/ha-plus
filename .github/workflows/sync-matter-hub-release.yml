@@ -1,0 +1,97 @@
+name: Sync Matter Hub release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "27 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-matter-hub-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync latest stable release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve latest release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE_JSON=$(mktemp)
+          curl --fail --silent --show-error --location \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/zvikarp/ha-plus-matter-hub/releases/latest" \
+            --output "$RELEASE_JSON"
+
+          VERSION=$(jq -r '.tag_name | sub("^v"; "")' "$RELEASE_JSON")
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unsupported stable release version: $VERSION" >&2
+            exit 1
+          fi
+
+          CHANGELOG_URL=$(jq -r '.assets[] | select(.name == "CHANGELOG.md") | .browser_download_url' "$RELEASE_JSON")
+          if [ -z "$CHANGELOG_URL" ]; then
+            echo "The release does not contain CHANGELOG.md" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "changelog_url=$CHANGELOG_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Verify add-on image
+        id: image
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if docker manifest inspect "ghcr.io/zvikarp/ha-plus-matter-hub-addon:$VERSION" >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::The add-on image for $VERSION is not available yet; leaving the manifest unchanged."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update add-on metadata
+        if: ${{ steps.image.outputs.ready == 'true' }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          CHANGELOG_URL: ${{ steps.release.outputs.changelog_url }}
+        run: |
+          set -euo pipefail
+
+          CONFIG_FILE="ha-plus-matter-hub/config.json"
+          UPDATED_CONFIG=$(mktemp)
+          jq --arg version "$VERSION" '.version = $version' "$CONFIG_FILE" > "$UPDATED_CONFIG"
+          mv "$UPDATED_CONFIG" "$CONFIG_FILE"
+
+          curl --fail --silent --show-error --location \
+            "$CHANGELOG_URL" \
+            --output "ha-plus-matter-hub/CHANGELOG.md"
+
+      - name: Publish add-on update
+        if: ${{ steps.image.outputs.ready == 'true' }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if git diff --quiet; then
+            echo "Matter Hub is already synchronized to $VERSION."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ha-plus-matter-hub/config.json ha-plus-matter-hub/CHANGELOG.md
+          git commit -m "chore(matter-hub): release $VERSION"
+          git push origin HEAD:main
