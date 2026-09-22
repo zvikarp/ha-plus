@@ -5,7 +5,7 @@
   "description": "Expose Home Assistant entities to Matter controllers such as Apple Home, Google Home, and Alexa.",
   "url": "https://github.com/zvikarp/ha-plus-matter-hub",
   "panel_icon": "mdi:hub",
-  "panel_title": "Matter Hub",
+  "panel_title": "HA Plus Matter Hub",
   "homeassistant": "2024.1.0",
   "homeassistant_api": true,
   "host_network": true,
