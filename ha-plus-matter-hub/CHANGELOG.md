@@ -1,12 +1,14 @@
-## [1.1.1](https://github.com/zvikarp/ha-plus-matter-hub/compare/v1.1.0...v1.1.1) (2026-09-20)
+# [1.2.0](https://github.com/zvikarp/ha-plus-matter-hub/compare/v1.1.1...v1.2.0) (2026-11-01)
 
 
 ### Bug Fixes
 
-* **ci:** build Node 24 images on supported architectures ([bef3919](https://github.com/zvikarp/ha-plus-matter-hub/commit/bef3919132d6f797f47bffac84f1a1437519509d))
-* **release:** authenticate initial npm publish ([5d8c93c](https://github.com/zvikarp/ha-plus-matter-hub/commit/5d8c93c5c21e4ff5979f5a5d3f50a987e2526958))
-* **release:** publish through GitHub and GHCR ([1519264](https://github.com/zvikarp/ha-plus-matter-hub/commit/15192644896b80f590861fef1d6c10ed4ff4239a))
-* **release:** verify public container access ([36d66b6](https://github.com/zvikarp/ha-plus-matter-hub/commit/36d66b68ba442cc66ea8c863de23e8a1b7c869f0))
+* keep Matter Hub details usable on narrow screens ([567d5b6](https://github.com/zvikarp/ha-plus-matter-hub/commit/567d5b6565308279fa4c057b93c2b8dbb8a56aba))
+
+
+### Features
+
+* configure matching command repetition by category ([fcfd201](https://github.com/zvikarp/ha-plus-matter-hub/commit/fcfd2011991e73591efc68b08a89125d688cc388))
 
 # Changelog
 
