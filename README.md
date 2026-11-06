@@ -10,8 +10,9 @@ The Matter Hub app uses the versioned container image published by
 [ha-plus-matter-hub](https://github.com/zvikarp/ha-plus-matter-hub). Its manifest and changelog are synchronized from the
 latest stable GitHub Release after the matching GHCR image is available.
 
-## BroadLink IR Remote Mapper
+## HA+ IR Mapper
 
-[Installation and configuration](broadlink-ir-mapper/README.md) for the
-Home Assistant integration with guided IR learning and a HA+ control panel. Source lives under
-`custom_components/broadlink_ir_mapper`; this is an integration, not an add-on.
+[HA+ IR Mapper](https://github.com/zvikarp/ha-plus-ir-mapper) is maintained in its
+own repository, including guided IR learning, the HA+ sidebar/dashboard card,
+HACS metadata, tests, and releases. Add that repository to HACS as an Integration.
+Existing users can follow the [migration guide](https://github.com/zvikarp/ha-plus-ir-mapper#moving-from-the-ha-plus-repository).
