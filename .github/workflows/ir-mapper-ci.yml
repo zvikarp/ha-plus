@@ -2,9 +2,9 @@ name: IR mapper CI
 on:
   push:
     branches: [main]
-    paths: ['custom_components/broadlink_ir_mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', '.github/workflows/ir-mapper-*.yml']
+    paths: ['custom_components/broadlink_ir_mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', 'package.json', 'package-lock.json', '.github/workflows/ir-mapper-*.yml']
   pull_request:
-    paths: ['custom_components/broadlink_ir_mapper/**', 'broadlink-ir-mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', '.github/workflows/ir-mapper-*.yml']
+    paths: ['custom_components/broadlink_ir_mapper/**', 'broadlink-ir-mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', 'package.json', 'package-lock.json', '.github/workflows/ir-mapper-*.yml']
   workflow_dispatch:
   workflow_call:
 permissions:
@@ -27,6 +27,12 @@ jobs:
       - run: pip install -r ${{ matrix.requirements }}
       - run: ruff check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
       - run: ruff format --check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: node --check custom_components/broadlink_ir_mapper/frontend/ir-mapper.js
+      - run: npm test
       - run: pytest
       - run: python scripts/package_ir_mapper.py
       - uses: actions/upload-artifact@v4

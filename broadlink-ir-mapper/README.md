@@ -1,11 +1,12 @@
-# BroadLink IR Remote Mapper
+# HA+ IR Mapper (BroadLink)
 
 <img src="../resources/ha-plus-ir-mapper.png" alt="HA+ BroadLink IR Mapper" width="140">
 
 A local Home Assistant integration that exposes IR-controlled lights through an
 existing BroadLink remote. It maps power, preset RGB colors, effects, and relative
-brightness commands to normal light entities. Configuration uses YAML; there is
-no setup wizard or separate server.
+brightness commands to normal light entities. Configure devices with native HA forms and guided IR learning, then control them
+from the HA+ IR sidebar or dashboard card. Existing YAML configuration remains
+supported. No separate server is required.
 
 Requires Home Assistant **2025.1.3 or newer**, a working BroadLink integration,
 and a reachable `remote.*` entity. CI covers HA 2025.1.3 and 2026.10.4.
@@ -18,8 +19,8 @@ After the first IR mapper release has been published:
 
 1. Add `https://github.com/zvikarp/ha-plus` to HACS custom repositories as an
    **Integration** (not an add-on or dashboard card).
-2. Install **BroadLink IR Remote Mapper** and restart Home Assistant.
-3. Add the YAML configuration below and restart again.
+2. Install **HA+ IR Mapper** and restart Home Assistant.
+3. Follow guided setup below. Existing YAML installations continue to work.
 
 The integration is not in HACS's default catalog. The repository's HACS metadata
 selects the `broadlink_ir_mapper.zip` release asset. Until a published release
@@ -36,13 +37,61 @@ The final path must be `config/custom_components/broadlink_ir_mapper/light.py`.
 The `broadlink-ir-mapper` directory contains documentation, not integration code.
 Restart Home Assistant after installation or an upgrade.
 
-## Configure
+## Guided setup and learning
+
+1. In **Settings → Devices & services → Add integration**, choose **BroadLink IR
+   Remote Mapper**. Select an available BroadLink remote and name the light.
+2. Enter its brightness steps: the approximate number of presses from minimum to
+   maximum. Leave 10 if unknown; adjust after checking your remote.
+3. Choose **Learn or replace a button**, select its function, and submit. Point
+   your physical remote at BroadLink and press the matching button when prompted.
+4. After learning, the new command is sent once. Confirm physical response to keep
+   the mapping. Learn **Power on** and **Power off** before saving; brightness,
+   named RGB presets, and effects are optional.
+5. Save and open **HA+ IR** in the sidebar. Settings reopens the native integration
+   page; use **Configure** on the entry to rename, recalibrate, learn, test, or
+   remove individual mappings. Commands are staged until Save. Cancelling does
+   not change an existing device; unused learned codes remain in BroadLink storage.
+
+Guided setup stores references to BroadLink's learned commands, not copied base64.
+A remote cannot be changed in place because those commands belong to that remote;
+create a new device if moving to a different BroadLink. Setup/options require HA
+administrator access. Normal controls use HA's standard entity permissions.
+
+### Sidebar and dashboard card
+
+The theme-aware sidebar and card share the same controls: power, learned color
+swatches, exact effect names, estimated brightness, remote status, and inline
+command errors. Colors/effects are read automatically from entity metadata and
+highlight the current assumed selection. Sliders send on release, not every drag
+movement. Controls work from the off state and switch the light on as needed.
+
+In the dashboard card picker, select **HA+ IR** and choose an IR light. The first
+available IR entity is preselected. No separate card resource installation is
+needed, and no preset lists need to be copied into card configuration:
+
+```yaml
+type: custom:ha-plus-ir-card
+entity: light.bedroom_led_strip
+```
+
+**Resync to full brightness** turns the light on and sends enough brightness-up
+commands to saturate the hardware at maximum, establishing a full-brightness
+baseline. It deliberately changes physical brightness; it cannot read device
+state. The same action is available to automations as
+`broadlink_ir_mapper.resynchronize`, targeting the light. A learned brightness-up
+command is required. After a power reset or physical remote change, resync before
+using absolute brightness targets. Results remain approximate if the configured
+step count differs from the hardware.
+
+## Configure with YAML (existing installations)
 
 Learn commands with Home Assistant's `remote.learn_command` action using your
 BroadLink remote. Copy the base64 code for each learned command from its
 `.storage/broadlink_remote_*_codes` file, reading it without editing that file.
-The mapper accepts raw base64 and `b64:`-prefixed codes. It does not accept a
-learned command name; BroadLink requires a separate device name for that mode.
+The mapper accepts raw base64 and `b64:`-prefixed codes. To reference a command
+already learned through BroadLink, use `{device: led_strip, command: power_on}`
+instead of a base64 string. The same reference form works for every IR code field.
 
 ```yaml
 light:
@@ -50,6 +99,7 @@ light:
     name: Bedroom LED Strip
     unique_id: bedroom_led_strip_ir
     broadlink_remote: remote.broadlink_rm4_remote
+    # brightness_steps: 10  # optional calibration; omit for legacy 25-point steps
     ir_codes:
       power_on: "YOUR_BASE64_POWER_ON_CODE"
       power_off: "YOUR_BASE64_POWER_OFF_CODE"
@@ -89,7 +139,8 @@ effects must be configured on the card separately.
   earlier successful commands in a multi-command action remain recorded.
 - Commands for one light are serialized so simultaneous actions cannot interleave
   its power, brightness, color, and effect sequence.
-- Brightness is an estimate in 25-point steps on HA's 0–255 scale. Targets round
+- Brightness is an estimate on HA's 0–255 scale. YAML defaults to the legacy
+  25-point step; optional `brightness_steps` sets the full-range press count. Targets round
   to the nearest relative step; differences below half a step send nothing and
   leave the estimate unchanged. Repeated targets do not oscillate. Targets 1 and
   255 clamp to the endpoints; zero sends the power-off code. The reported value

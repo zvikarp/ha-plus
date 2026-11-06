@@ -18,7 +18,14 @@ def package() -> Path:
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
         archive.write(ROOT / "LICENSE", "LICENSE")
         for path in sorted(SOURCE.rglob("*")):
-            if path.is_file() and path.suffix in {".py", ".json", ".png", ".svg"}:
+            if path.is_file() and path.suffix in {
+                ".py",
+                ".json",
+                ".png",
+                ".svg",
+                ".js",
+                ".yaml",
+            }:
                 if "__pycache__" not in path.parts:
                     archive.write(path, path.relative_to(SOURCE))
     return output

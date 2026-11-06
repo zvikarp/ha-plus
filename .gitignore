@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 .DS_Store
 broadlink_ir_mapper.zip
+node_modules/

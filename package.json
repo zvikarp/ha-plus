@@ -1,0 +1,7 @@
+{
+  "name": "ha-plus-ir-ui-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test tests/ir_mapper/frontend.test.js"},
+  "devDependencies": {"linkedom": "0.18.12"}
+}

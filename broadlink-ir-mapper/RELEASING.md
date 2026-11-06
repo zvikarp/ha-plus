@@ -8,6 +8,8 @@ From the repository root, create a Python 3.13 environment and run:
 pip install -r requirements-ir-minimum.txt
 ruff check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
 ruff format --check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
+npm ci --ignore-scripts
+npm test
 pytest
 python scripts/package_ir_mapper.py
 ```
@@ -38,7 +40,14 @@ by CI. No completed hardware test is claimed by this change.
    initial assumed state, and successful explicit resynchronization.
 7. Upgrade an existing YAML installation. Confirm entity ID/unique ID continuity.
    Restore its previous files and compatible HA version to verify rollback.
-8. After publishing the draft, verify HACS custom-repository installation and
+8. Complete native setup and options editing, learning all power/color/effect
+   types; test learning timeout, cancellation, and an unavailable remote. Verify
+   the automatic test send physically before confirming each mapping. Cancel an
+   options edit and confirm existing controls are unaffected.
+9. Check the HA+ IR panel and dashboard card in light/dark themes at mobile and
+   desktop widths; verify keyboard controls, errors, preset/effect selection,
+   unavailable state, one slider submission per drag, and resynchronization.
+10. After publishing the draft, verify HACS custom-repository installation and
    update using the released ZIP; this distribution check is separate from CI.
 
 ## Build and publish

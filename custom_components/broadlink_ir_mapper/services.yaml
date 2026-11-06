@@ -1,0 +1,7 @@
+resynchronize:
+  name: Resynchronize brightness
+  description: Turn the light on and send enough brightness-up commands to reach maximum brightness, establishing a new assumed baseline.
+  target:
+    entity:
+      integration: broadlink_ir_mapper
+      domain: light

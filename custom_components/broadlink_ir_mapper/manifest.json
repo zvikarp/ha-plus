@@ -1,17 +1,20 @@
 {
   "domain": "broadlink_ir_mapper",
-  "name": "BroadLink IR Remote Mapper",
+  "name": "HA+ IR Mapper",
   "version": "1.0.0",
   "documentation": "https://github.com/zvikarp/ha-plus/tree/main/broadlink-ir-mapper",
   "requirements": [],
   "dependencies": [
-    "remote"
+    "remote",
+    "frontend",
+    "http",
+    "panel_custom"
   ],
   "codeowners": [
     "@zvikarp"
   ],
   "iot_class": "assumed_state",
-  "config_flow": false,
+  "config_flow": true,
   "issue_tracker": "https://github.com/zvikarp/ha-plus/issues",
   "integration_type": "helper"
 }
