@@ -2,364 +2,123 @@
 
 <img src="../resources/ha-plus-ir-mapper.png" alt="HA Plus BroadLink IR Mapper" width="140">
 
-A Home Assistant custom integration that maps IR remote commands from BroadLink devices to Home Assistant light entities. This is specifically designed for LED lights and other IR-controlled devices that don't have native Home Assistant support.
+A local Home Assistant integration that exposes IR-controlled lights through an
+existing BroadLink remote. It maps power, preset RGB colors, effects, and relative
+brightness commands to normal light entities. Configuration uses YAML; there is
+no setup wizard or separate server.
 
-## Problem It Solves
+Requires Home Assistant **2025.1.3 or newer**, a working BroadLink integration,
+and a reachable `remote.*` entity. CI covers HA 2025.1.3 and 2026.10.4.
 
-When you have IR-controlled LED lights that work with BroadLink remotes and the BroadLink integration in Home Assistant, the lights themselves don't appear as controllable entities in Home Assistant. You can only send raw IR commands. This integration bridges that gap by:
+## Install
 
-1. Creating proper Home Assistant light entities
-2. Mapping IR remote button codes to light controls (colors, effects, brightness)
-3. Allowing you to control IR lights through Home Assistant UI, automations, and voice assistants
+### HACS custom repository
 
-## Features
+After the first IR mapper release has been published:
 
-- ✅ Creates Home Assistant light entities for IR-controlled devices
-- ✅ Maps IR codes to RGB colors
-- ✅ Maps IR codes to effects (flash, strobe, fade, etc.)
-- ✅ Brightness control via IR up/down commands
-- ✅ Power on/off control
-- ✅ Works with existing BroadLink integration
-- ✅ Supports multiple lights with different configurations
-- ✅ Compatible with RGB Light Button Card for easy control
+1. Add `https://github.com/zvikarp/ha-plus` to HACS custom repositories as an
+   **Integration** (not an add-on or dashboard card).
+2. Install **BroadLink IR Remote Mapper** and restart Home Assistant.
+3. Add the YAML configuration below and restart again.
 
-## Requirements
+The integration is not in HACS's default catalog. The repository's HACS metadata
+selects the `broadlink_ir_mapper.zip` release asset. Until a published release
+contains that asset, use the source installation below.
 
-- Home Assistant with BroadLink integration already set up
-- BroadLink remote entity (e.g., `remote.broadlink_rm4_remote`)
-- IR codes learned/configured in BroadLink integration
+### Manual installation
 
-## Installation
+Copy `custom_components/broadlink_ir_mapper` from this repository into your
+Home Assistant configuration's `custom_components` directory. Alternatively,
+extract `broadlink_ir_mapper.zip` into that same destination. The archive contains
+`manifest.json` and Python files directly at its root.
 
-### Method 1: Manual Installation
+The final path must be `config/custom_components/broadlink_ir_mapper/light.py`.
+The `broadlink-ir-mapper` directory contains documentation, not integration code.
+Restart Home Assistant after installation or an upgrade.
 
-1. Copy the `broadlink-ir-mapper` folder to your Home Assistant `custom_components` directory:
-   ```
-   config/
-   └── custom_components/
-       └── broadlink_ir_mapper/
-           ├── __init__.py
-           ├── light.py
-           ├── manifest.json
-           └── README.md
-   ```
+## Configure
 
-2. Restart Home Assistant
-
-3. Configure your lights in `configuration.yaml` (see Configuration section below)
-
-### Method 2: HACS (When Available)
-
-If this integration is published to HACS:
-
-1. Open HACS → Integrations
-2. Click "+" → "Custom repositories"
-3. Add repository URL
-4. Install "BroadLink IR Remote Mapper"
-5. Restart Home Assistant
-
-## Configuration
-
-### Basic Setup
-
-Add to your `configuration.yaml`:
+Learn commands with Home Assistant's `remote.learn_command` action using your
+BroadLink remote. Copy the base64 code for each learned command from its
+`.storage/broadlink_remote_*_codes` file, reading it without editing that file.
+The mapper accepts raw base64 and `b64:`-prefixed codes. It does not accept a
+learned command name; BroadLink requires a separate device name for that mode.
 
 ```yaml
 light:
   - platform: broadlink_ir_mapper
-    name: "Living Room LED Strip"
-    broadlink_remote: remote.broadlink_rm4_remote
-    ir_codes:
-      power_on: "JgBQAAABJZIUEhQ6..."  # Your learned IR code
-      power_off: "JgBQAAABJZIUEhQ7..."  # Your learned IR code
-      brightness_up: "JgBQAAABJZIU..."    # Optional
-      brightness_down: "JgBQAAABJZI..."  # Optional
-    colors:
-      - name: "Red"
-        rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIUEhQ6..."
-      - name: "Green"
-        rgb: [0, 255, 0]
-        ir_code: "JgBQAAABJZIUEhQ6..."
-      - name: "Blue"
-        rgb: [0, 0, 255]
-        ir_code: "JgBQAAABJZIUEhQ6..."
-    effects:
-      - name: "Flash"
-        ir_code: "JgBQAAABJZIUEhQ6..."
-      - name: "Fade"
-        ir_code: "JgBQAAABJZIUEhQ6..."
-```
-
-### Configuration Options
-
-| Option | Required | Type | Description |
-|--------|----------|------|-------------|
-| `name` | Yes | string | Name of the light entity |
-| `broadlink_remote` | Yes | entity_id | BroadLink remote entity ID |
-| `ir_codes.power_on` | Yes | string | IR code to turn light on |
-| `ir_codes.power_off` | Yes | string | IR code to turn light off |
-| `ir_codes.brightness_up` | No | string | IR code to increase brightness |
-| `ir_codes.brightness_down` | No | string | IR code to decrease brightness |
-| `colors` | No | list | List of color configurations |
-| `effects` | No | list | List of effect configurations |
-| `unique_id` | No | string | Unique ID for the entity |
-
-### Color Configuration
-
-Each color entry requires:
-
-```yaml
-- name: "Color Name"       # Display name
-  rgb: [R, G, B]           # RGB values (0-255)
-  ir_code: "JgBQAAAB..."   # IR code to activate this color
-```
-
-### Effect Configuration
-
-Each effect entry requires:
-
-```yaml
-- name: "Effect Name"      # Display name
-  ir_code: "JgBQAAAB..."   # IR code to activate this effect
-```
-
-## How to Get IR Codes
-
-You need to learn IR codes from your physical remote using the BroadLink integration:
-
-### Method 1: BroadLink Integration Learn Service
-
-1. Go to Developer Tools → Services
-2. Service: `remote.learn_command`
-3. Entity: Your BroadLink remote
-4. Data:
-   ```yaml
-   entity_id: remote.broadlink_rm4_remote
-   device: led_strip
-   command: power_on
-   ```
-5. Press the button on your physical remote
-6. The learned code will be saved and you can find it in the BroadLink configuration
-
-### Method 2: BroadLink App
-
-1. Use the BroadLink app to learn commands
-2. Export the codes from the app
-3. Convert to Home Assistant format if needed
-
-### Example: Learning All Codes for LED Strip
-
-```yaml
-# In Developer Tools → Services, run these one by one:
-
-# Learn power on
-service: remote.learn_command
-data:
-  entity_id: remote.broadlink_rm4_remote
-  device: led_strip
-  command: power_on
-
-# Learn red button
-service: remote.learn_command
-data:
-  entity_id: remote.broadlink_rm4_remote
-  device: led_strip
-  command: red
-
-# Repeat for all buttons...
-```
-
-## Complete Example Configuration
-
-```yaml
-light:
-  # Bedroom LED Strip
-  - platform: broadlink_ir_mapper
-    name: "Bedroom LED Strip"
+    name: Bedroom LED Strip
     unique_id: bedroom_led_strip_ir
     broadlink_remote: remote.broadlink_rm4_remote
     ir_codes:
-      power_on: "JgBQAAABJZIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQSFAAFGgABJ0kUAA0FAAAAAAAAAAA="
-      power_off: "JgBQAAABJpIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFDoUEhQSFBIUEhQSFBIUEhQSFDoUOhQ6FDoUOhQ6FBIUOhQABRoAAScADQU="
-      brightness_up: "JgBQAAABJZMUEhM7ExIUEhQSFBIUEhQ6EzoUOhQ6FDoUEhQSFBIUEhQ6FBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      brightness_down: "JgBQAAABJZMTEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFBIUEhQSFBIUOhQ6FBIUEhQSFBIUOhQ6FDoUOhQ6FDoUABRoAAScADQU="
-    colors:
-      - name: "Red"
+      power_on: "YOUR_BASE64_POWER_ON_CODE"
+      power_off: "YOUR_BASE64_POWER_OFF_CODE"
+      brightness_up: "YOUR_BASE64_BRIGHTNESS_UP_CODE"      # optional
+      brightness_down: "YOUR_BASE64_BRIGHTNESS_DOWN_CODE"  # optional
+    colors:  # optional
+      - name: Red
         rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Green"
+        ir_code: "YOUR_BASE64_RED_CODE"
+      - name: Green
         rgb: [0, 255, 0]
-        ir_code: "JgBQAAABJZMUERM7FBIUEhMSFBIUEhQ6EzoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Blue"
-        rgb: [0, 0, 255]
-        ir_code: "JgBQAAABJpITEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "White"
-        rgb: [255, 255, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Orange"
-        rgb: [255, 165, 0]
-        ir_code: "JgBQAAABJZMTEhQ6FBIUEhQSExMUEhM6FDoUOhQ6EzoUOhQ6ExIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Cyan"
-        rgb: [0, 255, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoTOhQ6FDoUOhQ6FBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Purple"
-        rgb: [128, 0, 128]
-        ir_code: "JgBQAAABJ5IUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Yellow"
-        rgb: [255, 255, 0]
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6EzoUOhQ6FDoUOhQ6FBIUEhQSFDoUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-    effects:
-      - name: "Flash"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FDoUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Strobe"
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6FDoTOhQ6FDoUEhQ6FBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Fade"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FBIUEhQ6FBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Smooth"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FBIUEhQSFDoUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-
-  # Kitchen LED Strip  
-  - platform: broadlink_ir_mapper
-    name: "Kitchen LED Strip"
-    unique_id: kitchen_led_strip_ir
-    broadlink_remote: remote.broadlink_rm_mini
-    ir_codes:
-      power_on: "JgBQAAABKJEVERM..."
-      power_off: "JgBQAAABKJEVERQ..."
-    colors:
-      - name: "Warm White"
-        rgb: [255, 230, 180]
-        ir_code: "JgBQAAABKJEV..."
-      - name: "Cool White"
-        rgb: [200, 220, 255]
-        ir_code: "JgBQAAABKJEV..."
+        ir_code: "YOUR_BASE64_GREEN_CODE"
+    effects:  # optional
+      - name: Flash
+        ir_code: "YOUR_BASE64_FLASH_CODE"
 ```
 
-## Usage
+Replace every placeholder with an actual learned code before validating the
+configuration. Invalid base64, RGB values, and non-remote entity IDs are rejected.
+`name`, `broadlink_remote`, and both power codes are required. `unique_id` is
+optional but recommended for entity registry management. See
+[example-configuration.yaml](example-configuration.yaml) for the same structure.
 
-Once configured, your IR lights will appear as regular Home Assistant light entities:
+Use standard `light.turn_on` / `light.turn_off` actions, with `rgb_color`,
+`effect`, or `brightness` as appropriate. Requested RGB colors select the closest
+configured preset. Selecting a color clears the current effect; selecting an
+effect sets its configured name. Unknown effects fail before sending commands.
+The RGB Light Button Card can control these entities, but its preset colors and
+effects must be configured on the card separately.
 
-### In Home Assistant UI
+## State and failure behavior
 
-The lights will appear in:
-- Overview dashboard
-- Light controls
-- Scenes
-- Automations
+- IR is one-way. The entity exposes **assumed state**; a successful service call
+  means submission to BroadLink, not confirmation that the light received it.
+- A missing, disabled, unknown, or unavailable remote fails the action. Transport
+  exceptions propagate to HA. Failed commands do not advance the assumed state;
+  earlier successful commands in a multi-command action remain recorded.
+- Commands for one light are serialized so simultaneous actions cannot interleave
+  its power, brightness, color, and effect sequence.
+- Brightness is an estimate in 25-point steps on HA's 0–255 scale. Targets round
+  to the nearest relative step; differences below half a step send nothing and
+  leave the estimate unchanged. Repeated targets do not oscillate. Targets 1 and
+  255 clamp to the endpoints; zero sends the power-off code. The reported value
+  follows steps sent and can differ from the target. Remotes
+  with different hardware increments will not match this estimate exactly.
+- Either brightness code may be configured independently. Requesting a direction
+  without its code fails explicitly. RGB mode inherently includes a brightness
+  control in HA; a fixed-brightness remote rejects unsupported dimming requests.
+- A restart initializes the assumed state to off and brightness to full. No IR is
+  sent at startup. Physical remote changes and device power resets cannot be
+  detected; send power and settings explicitly to resynchronize.
 
-### Via Services
+## Upgrading and rollback
 
-```yaml
-# Turn on with specific color
-service: light.turn_on
-target:
-  entity_id: light.bedroom_led_strip
-data:
-  rgb_color: [255, 0, 0]  # Red
+The domain `broadlink_ir_mapper`, YAML keys, and `unique_id` values are unchanged.
+Existing installations keep their `custom_components/broadlink_ir_mapper` path;
+replace its files from the new source directory or archive, retaining your YAML.
+Do not rename existing `unique_id` values or delete entity registry entries.
+Restart HA after replacement. To roll back, restore the previous integration
+files and restart; no stored data or configuration migration is performed.
+The previous legacy light API is unsuitable for recent HA versions, so rolling
+back may also require the previous HA version.
 
-# Turn on with effect
-service: light.turn_on
-target:
-  entity_id: light.bedroom_led_strip
-data:
-  effect: Flash
+## Validation and release
 
-# Adjust brightness
-service: light.turn_on
-target:
-  entity_id: light.bedroom_led_strip
-data:
-  brightness: 200
-```
+See [RELEASING.md](RELEASING.md) for automated checks, the hardware acceptance
+checklist, and the manual draft-release workflow. A version in the manifest is
+not proof that a release has been published or tested with hardware.
 
-### With RGB Light Button Card
-
-This integration works perfectly with the RGB Light Button Card:
-
-```yaml
-type: custom:rgb-light-button-card
-entity: light.bedroom_led_strip
-title: Bedroom LEDs
-show_brightness: true
-show_effects: true
-```
-
-The button card will automatically use the colors and effects you configured!
-
-## Integration with Voice Assistants
-
-Once configured, you can control your IR lights with voice:
-
-- "Hey Google, turn on the bedroom LED strip"
-- "Alexa, set bedroom LED strip to red"
-- "Hey Google, set bedroom LED strip to fade effect"
-
-## Troubleshooting
-
-### Light doesn't respond
-
-1. **Check BroadLink remote entity** - Make sure it's available and working
-2. **Verify IR codes** - Test codes directly using `remote.send_command`
-3. **Check line of sight** - BroadLink needs clear IR line of sight to the device
-4. **Test with BroadLink app** - Verify codes work in the BroadLink app first
-
-### Colors don't match
-
-- The integration uses the closest RGB match
-- Make sure RGB values match what your remote actually produces
-- Some cheap LED strips have limited color accuracy
-
-### Brightness control doesn't work
-
-- Brightness requires `brightness_up` and `brightness_down` IR codes
-- The integration approximates brightness by sending multiple commands
-- Some remotes don't have brightness control
-
-### Effects don't appear
-
-- Make sure `effects` are properly configured in YAML
-- Check that effect IR codes are learned correctly
-- Verify effect names match what you configured
-
-## Technical Details
-
-### How It Works
-
-1. Integration creates a virtual light entity in Home Assistant
-2. When you control the light (color, effect, etc.), it maps your action to the appropriate IR code
-3. It sends the IR code through your BroadLink remote
-4. The IR remote transmits to your LED light
-
-### Supported Features
-
-The integration automatically detects supported features based on your configuration:
-
-- **SUPPORT_BRIGHTNESS**: If `brightness_up` or `brightness_down` codes provided
-- **SUPPORT_COLOR**: If `colors` list is provided
-- **SUPPORT_EFFECT**: If `effects` list is provided
-
-### Limitations
-
-- **State tracking**: The light entity tracks state locally (can't read actual device state)
-- **Brightness steps**: Brightness is approximated with up/down commands
-- **Color matching**: Uses closest RGB match from configured colors
-- **One-way communication**: Can send commands but can't receive status updates
-
-## Compatibility
-
-- **Home Assistant**: 2021.4.0 or newer
-- **BroadLink Integration**: Any version with learned IR commands
-- **Devices**: Any IR-controlled LED light with BroadLink remote
-
-## Contributing
-
-Found a bug or have a suggestion? Please open an issue or submit a pull request!
-
-## License
-
-MIT License
-
-## Credits
-
-Created for controlling cheap IR-controlled LED lights through Home Assistant with BroadLink integration support.
+Report problems with HA version, sanitized configuration, and logs at
+[GitHub Issues](https://github.com/zvikarp/ha-plus/issues). Never include private
+Home Assistant storage files in an issue.

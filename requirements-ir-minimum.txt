@@ -1,0 +1,5 @@
+homeassistant==2025.1.3
+pytest-homeassistant-custom-component==0.13.204
+home-assistant-frontend==20250109.0
+pycares==4.5.0
+ruff==0.14.3

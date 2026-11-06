@@ -1,122 +1,18 @@
-# Example configuration.yaml for BroadLink IR Mapper
-
-# Basic example - minimal configuration
+# Replace every placeholder with a real base64 code learned by your BroadLink.
 light:
   - platform: broadlink_ir_mapper
-    name: "Living Room LED Strip"
-    broadlink_remote: remote.broadlink_rm4_remote
-    ir_codes:
-      power_on: "JgBQAAABJZIUEhQ6FBIUEhQSFBIU..."
-      power_off: "JgBQAAABJpIUEhQ6FBIUEhQSFBIU..."
-    colors:
-      - name: "Red"
-        rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIUEhQ6FBIUOhQ..."
-      - name: "Green"
-        rgb: [0, 255, 0]
-        ir_code: "JgBQAAABJZMUERM7FBIUOhQ..."
-      - name: "Blue"
-        rgb: [0, 0, 255]
-        ir_code: "JgBQAAABJpITEhQ6FBIUOhQ..."
-      - name: "White"
-        rgb: [255, 255, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUOhQ..."
-
-# Full example - all features
-light:
-  - platform: broadlink_ir_mapper
-    name: "Bedroom RGB Strip"
+    name: Bedroom LED Strip
     unique_id: bedroom_led_strip_ir
     broadlink_remote: remote.broadlink_rm4_remote
     ir_codes:
-      power_on: "JgBQAAABJZIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQSFAAFGgABJ0kUAA0FAAAAAAAAAAA="
-      power_off: "JgBQAAABJpIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFDoUEhQSFBIUEhQSFBIUEhQSFDoUOhQ6FDoUOhQ6FBIUOhQABRoAAScADQU="
-      brightness_up: "JgBQAAABJZMUEhM7ExIUEhQSFBIUEhQ6EzoUOhQ6FDoUEhQSFBIUEhQ6FBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      brightness_down: "JgBQAAABJZMTEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQSFBIUEhQSFBIUOhQ6FBIUEhQSFBIUOhQ6FDoUOhQ6FDoUABRoAAScADQU="
+      power_on: "YOUR_BASE64_POWER_ON_CODE"
+      power_off: "YOUR_BASE64_POWER_OFF_CODE"
+      brightness_up: "YOUR_BASE64_BRIGHTNESS_UP_CODE"
+      brightness_down: "YOUR_BASE64_BRIGHTNESS_DOWN_CODE"
     colors:
-      - name: "Red"
+      - name: Red
         rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIUEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Green"
-        rgb: [0, 255, 0]
-        ir_code: "JgBQAAABJZMUERM7FBIUEhMSFBIUEhQ6EzoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Blue"
-        rgb: [0, 0, 255]
-        ir_code: "JgBQAAABJpITEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "White"
-        rgb: [255, 255, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQSFBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Orange"
-        rgb: [255, 165, 0]
-        ir_code: "JgBQAAABJZMTEhQ6FBIUEhQSExMUEhM6FDoUOhQ6EzoUOhQ6ExIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRoAAScADQU="
-      - name: "Cyan"
-        rgb: [0, 255, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoTOhQ6FDoUOhQ6FBIUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Purple"
-        rgb: [128, 0, 128]
-        ir_code: "JgBQAAABJ5IUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Yellow"
-        rgb: [255, 255, 0]
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6EzoUOhQ6FDoUOhQ6FBIUEhQSFDoUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Pink"
-        rgb: [255, 192, 203]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUEhQSFBIUOhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Lime"
-        rgb: [50, 205, 50]
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUEhQ6FBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Magenta"
-        rgb: [255, 0, 255]
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUEhQSFBIUEhQ6FBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Warm White"
-        rgb: [255, 230, 180]
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUOhQ6FBIUEhQSFBIUEhQSFDoUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
+        ir_code: "YOUR_BASE64_RED_CODE"
     effects:
-      - name: "Flash"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FDoUEhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Strobe"
-        ir_code: "JgBQAAABJ5ITEhQ6FBIUEhQSFBIUEhQ6FDoTOhQ6FDoUEhQ6FBIUOhQSFBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Fade"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FBIUEhQ6FBIUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-      - name: "Smooth"
-        ir_code: "JgBQAAABJpIUEhM6FBIUEhQSFBIUEhQ6FDoUOhQ6FDoUEhQ6FBIUEhQSFDoUEhQSFBIUEhQSFBIUOhQ6FDoUOhQ6FDoUOhQABRkAAScADQU="
-
-# Multiple lights example
-light:
-  # Living room
-  - platform: broadlink_ir_mapper
-    name: "Living Room LED Strip"
-    unique_id: living_room_led_ir
-    broadlink_remote: remote.living_room_broadlink
-    ir_codes:
-      power_on: "JgBQAAABJZIU..."
-      power_off: "JgBQAAABJpIU..."
-    colors:
-      - name: "Red"
-        rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIU..."
-
-  # Bedroom
-  - platform: broadlink_ir_mapper
-    name: "Bedroom LED Strip"
-    unique_id: bedroom_led_ir
-    broadlink_remote: remote.bedroom_broadlink
-    ir_codes:
-      power_on: "JgBQAAABJZIU..."
-      power_off: "JgBQAAABJpIU..."
-    colors:
-      - name: "Red"
-        rgb: [255, 0, 0]
-        ir_code: "JgBQAAABJZIU..."
-
-  # Kitchen
-  - platform: broadlink_ir_mapper
-    name: "Kitchen LED Strip"
-    unique_id: kitchen_led_ir
-    broadlink_remote: remote.kitchen_broadlink
-    ir_codes:
-      power_on: "JgBQAAABJZIU..."
-      power_off: "JgBQAAABJpIU..."
-    colors:
-      - name: "Warm White"
-        rgb: [255, 230, 180]
-        ir_code: "JgBQAAABJZIU..."
+      - name: Flash
+        ir_code: "YOUR_BASE64_FLASH_CODE"

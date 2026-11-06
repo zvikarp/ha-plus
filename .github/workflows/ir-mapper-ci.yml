@@ -1,0 +1,35 @@
+name: IR mapper CI
+on:
+  push:
+    branches: [main]
+    paths: ['custom_components/broadlink_ir_mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', '.github/workflows/ir-mapper-*.yml']
+  pull_request:
+    paths: ['custom_components/broadlink_ir_mapper/**', 'broadlink-ir-mapper/**', 'tests/ir_mapper/**', 'scripts/package_ir_mapper.py', 'requirements-ir-*.txt', 'pytest.ini', 'hacs.json', 'ruff.toml', 'LICENSE', '.github/workflows/ir-mapper-*.yml']
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python: '3.13'
+            requirements: requirements-ir-minimum.txt
+          - python: '3.14'
+            requirements: requirements-ir-current.txt
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r ${{ matrix.requirements }}
+      - run: ruff check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
+      - run: ruff format --check custom_components/broadlink_ir_mapper tests/ir_mapper scripts/package_ir_mapper.py
+      - run: pytest
+      - run: python scripts/package_ir_mapper.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ir-mapper-python-${{ matrix.python }}
+          path: broadlink_ir_mapper.zip

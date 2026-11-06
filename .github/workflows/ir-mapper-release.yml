@@ -1,0 +1,44 @@
+name: Release IR mapper
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag matching manifest version (vX.Y.Z)'
+        required: true
+        default: v1.0.0
+      hardware_verified:
+        description: 'I completed the documented BroadLink hardware acceptance checks'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ir-mapper-release
+  cancel-in-progress: false
+jobs:
+  test:
+    uses: ./.github/workflows/ir-mapper-ci.yml
+  release:
+    needs: test
+    if: inputs.hardware_verified && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: python scripts/package_ir_mapper.py
+        env:
+          IR_RELEASE_TAG: ${{ inputs.tag }}
+      - name: Create draft release for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IR_RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          gh release create "$IR_RELEASE_TAG" broadlink_ir_mapper.zip
+          --target "$GITHUB_SHA" --draft
+          --title "BroadLink IR Mapper ${IR_RELEASE_TAG#v}"
+          --notes-file broadlink-ir-mapper/RELEASE_NOTES.md
