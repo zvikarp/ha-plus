@@ -1,6 +1,6 @@
 # RGB Light Button Card
 
-<img src="../resources/ha-plus-general.png" alt="HA Plus RGB Light Button Card" width="140">
+<img src="../resources/ha-plus-general.png" alt="HA+ RGB Light Button Card" width="140">
 
 A custom Home Assistant Lovelace card for controlling RGB lights with preset color buttons. Perfect for cheap AliExpress RGB LED strips and other lights with limited color options.
 

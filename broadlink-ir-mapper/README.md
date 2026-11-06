@@ -1,6 +1,6 @@
 # BroadLink IR Remote Mapper
 
-<img src="../resources/ha-plus-ir-mapper.png" alt="HA Plus BroadLink IR Mapper" width="140">
+<img src="../resources/ha-plus-ir-mapper.png" alt="HA+ BroadLink IR Mapper" width="140">
 
 A local Home Assistant integration that exposes IR-controlled lights through an
 existing BroadLink remote. It maps power, preset RGB colors, effects, and relative

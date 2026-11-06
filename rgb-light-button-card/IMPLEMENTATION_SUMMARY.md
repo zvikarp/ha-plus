@@ -7,7 +7,7 @@
 As requested, the repository has been updated to reflect Home Assistant's terminology change from "Add-ons" to "Apps":
 
 - **README.md**: Changed "Home Assistant Add-ons" to "Home Assistant Apps"
-- **repository.yaml**: Changed "HA Plus Add-ons" to "HA Plus Apps"
+- **repository.yaml**: Changed "HA+ Add-ons" to "HA+ Apps"
 
 Technical references (like `addon_config` in config files) were intentionally left unchanged as these are Home Assistant system identifiers that should not be modified.
 

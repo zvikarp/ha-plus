@@ -1,10 +1,10 @@
-# ha-plus-apps
+# HA+ Apps
 
-<img src="./resources/ha-plus.png" alt="HA Plus" width="140">
+<img src="./resources/ha-plus.png" alt="HA+" width="140">
 
 Home Assistant Apps
 
-## HA Plus Matter Hub
+## HA+ Matter Hub
 
 The Matter Hub app uses the versioned container image published by
 [ha-plus-matter-hub](https://github.com/zvikarp/ha-plus-matter-hub). Its manifest and changelog are synchronized from the
