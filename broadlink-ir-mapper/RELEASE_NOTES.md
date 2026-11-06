@@ -8,5 +8,11 @@
   state changes. Brightness follows the relative steps actually sent.
 - Preserve existing YAML keys, domain, and unique IDs.
 
+- Native guided setup and options, background IR learning with test-send and
+  physical confirmation, and per-device brightness calibration.
+- Shared HA+ sidebar and automatically configured dashboard card with real presets,
+  effects, assumed state, remote status, inline errors, and send-on-release sliders.
+- Explicit resynchronization to full brightness and learned-command references.
+
 Hardware acceptance results must be recorded here or in the draft release before
 publication. Automated coverage alone does not verify physical IR reception.

@@ -22,9 +22,16 @@ def test_release_archive_and_tag_guard(tmp_path, monkeypatch):
     monkeypatch.setenv("IR_RELEASE_TAG", f"v{manifest['version']}")
     with ZipFile(module.package()) as archive:
         names = archive.namelist()
-        assert {"manifest.json", "__init__.py", "light.py", "brand/icon.png"} <= set(
-            names
-        )
+        assert {
+            "manifest.json",
+            "__init__.py",
+            "light.py",
+            "brand/icon.png",
+            "config_flow.py",
+            "frontend/ir-mapper.js",
+            "services.yaml",
+            "translations/en.json",
+        } <= set(names)
         assert all(
             "__pycache__" not in name and not name.endswith(".pyc") for name in names
         )

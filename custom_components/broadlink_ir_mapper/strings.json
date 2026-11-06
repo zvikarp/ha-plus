@@ -1,0 +1,154 @@
+{
+  "title": "HA+ IR Mapper",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add an IR light",
+        "description": "Choose the BroadLink remote that can reach this light. Learn both power buttons before saving. Brightness steps is the number of button presses from minimum to maximum.",
+        "data": {
+          "name": "Device name",
+          "broadlink_remote": "BroadLink remote",
+          "brightness_steps": "Brightness steps"
+        }
+      },
+      "init": {
+        "title": "Device settings",
+        "description": "Rename or recalibrate this device, then learn or replace individual commands. The BroadLink remote is fixed to preserve its learned commands.",
+        "data": {
+          "name": "Device name",
+          "brightness_steps": "Brightness steps"
+        }
+      },
+      "settings": {
+        "title": "IR commands",
+        "description": "Learn, test, or remove commands. Power on and power off are required; colors, effects, and brightness are optional.",
+        "menu_options": {
+          "learn": "Learn or replace a button",
+          "test": "Test a learned button",
+          "remove": "Remove a button",
+          "finish": "Save device"
+        }
+      },
+      "learn": {
+        "title": "Learn a button",
+        "description": "Select its function. For a color or effect, provide a name; select RGB only for a color preset. Press Submit, then point the physical remote at BroadLink and press the button when prompted. After learning, the new command is sent once automatically so you can verify the response.",
+        "data": {
+          "kind": "Button function",
+          "name": "Color or effect name",
+          "rgb": "Preset color"
+        }
+      },
+      "learned": {
+        "title": "Button learned",
+        "description": "The new button was sent once. Confirm that the physical device responded correctly to keep the mapping. If not, cancel and retry learning.",
+        "data": {
+          "received": "The physical device responded correctly"
+        }
+      },
+      "learning": {
+        "title": "Waiting for your remote"
+      },
+      "finish": {
+        "title": "Power buttons required",
+        "description": "Learn both Power on and Power off before saving. Continue to return to the command menu."
+      },
+      "remove": {
+        "title": "Remove a mapping",
+        "description": "Only the mapping is removed. The original learned code remains in BroadLink storage.",
+        "data": {
+          "command": "Button"
+        }
+      },
+      "test": {
+        "title": "Test a button",
+        "description": "This sends a real IR command. Check that the device responds, then return to the menu.",
+        "data": {
+          "command": "Button"
+        }
+      }
+    },
+    "error": {
+      "required": "Enter a name.",
+      "remote_unavailable": "Choose an available BroadLink remote.",
+      "learn_failed": "Learning failed or timed out. Continue to retry.",
+      "test_failed": "The command could not be sent. Check the remote and retry.",
+      "no_commands": "Learn a button first. Continue to return to the menu.",
+      "missing_power": "Learn Power on and Power off before saving.",
+      "not_confirmed": "Confirm the physical response, or cancel and retry learning."
+    },
+    "progress": {
+      "learning": "Point the physical remote at BroadLink and press the chosen button. Learning times out after 30 seconds."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Device settings",
+        "description": "Rename or recalibrate this device, then learn or replace individual commands. The BroadLink remote is fixed to preserve its learned commands.",
+        "data": {
+          "name": "Device name",
+          "brightness_steps": "Brightness steps"
+        }
+      },
+      "settings": {
+        "title": "IR commands",
+        "description": "Learn, test, or remove commands. Power on and power off are required; colors, effects, and brightness are optional.",
+        "menu_options": {
+          "learn": "Learn or replace a button",
+          "test": "Test a learned button",
+          "remove": "Remove a button",
+          "finish": "Save device"
+        }
+      },
+      "learn": {
+        "title": "Learn a button",
+        "description": "Select its function. For a color or effect, provide a name; select RGB only for a color preset. Press Submit, then point the physical remote at BroadLink and press the button when prompted. After learning, the new command is sent once automatically so you can verify the response.",
+        "data": {
+          "kind": "Button function",
+          "name": "Color or effect name",
+          "rgb": "Preset color"
+        }
+      },
+      "learned": {
+        "title": "Button learned",
+        "description": "The new button was sent once. Confirm that the physical device responded correctly to keep the mapping. If not, cancel and retry learning.",
+        "data": {
+          "received": "The physical device responded correctly"
+        }
+      },
+      "learning": {
+        "title": "Waiting for your remote"
+      },
+      "finish": {
+        "title": "Power buttons required",
+        "description": "Learn both Power on and Power off before saving. Continue to return to the command menu."
+      },
+      "remove": {
+        "title": "Remove a mapping",
+        "description": "Only the mapping is removed. The original learned code remains in BroadLink storage.",
+        "data": {
+          "command": "Button"
+        }
+      },
+      "test": {
+        "title": "Test a button",
+        "description": "This sends a real IR command. Check that the device responds, then return to the menu.",
+        "data": {
+          "command": "Button"
+        }
+      }
+    },
+    "error": {
+      "required": "Enter a name.",
+      "remote_unavailable": "Choose an available BroadLink remote.",
+      "learn_failed": "Learning failed or timed out. Continue to retry.",
+      "test_failed": "The command could not be sent. Check the remote and retry.",
+      "no_commands": "Learn a button first. Continue to return to the menu.",
+      "missing_power": "Learn Power on and Power off before saving.",
+      "not_confirmed": "Confirm the physical response, or cancel and retry learning."
+    },
+    "progress": {
+      "learning": "Press the chosen button on your physical remote."
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HA+ IR · Design preview</title>
+<style>
+:root{--primary-color:#8054cf;--primary-text-color:#24232a;--secondary-text-color:#6c6874;--secondary-background-color:#f1eef6;--card-background-color:#fff;--divider-color:#e9e5ef;--app-header-background-color:#fff;--app-header-text-color:#24232a;--text-primary-color:#fff;--error-color:#b3261e;font:14px Roboto,Arial,sans-serif;background:#f8f7fb;color:var(--primary-text-color)}
+:root.dark{--primary-color:#c5a3ff;--primary-text-color:#eee9f5;--secondary-text-color:#b4aebe;--secondary-background-color:#302b39;--card-background-color:#242029;--divider-color:#403a49;--app-header-background-color:#242029;--app-header-text-color:#eee9f5;--text-primary-color:#2e174f;--error-color:#ffb4ab;background:#18151d}
+body{margin:0}nav{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--divider-color);flex-wrap:wrap}nav a{color:var(--primary-color)}iframe{display:block;border:1px solid var(--divider-color);margin:20px auto;min-height:1000px;max-width:100%;background:var(--card-background-color)}ha-card{display:block}
+</style>
+<script>const params=new URLSearchParams(location.search);if(params.get("theme")==="dark")document.documentElement.classList.add("dark");</script>
+<body><script>
+if(!params.has("frame")){
+ const nav=document.createElement("nav");nav.textContent="Design preview · simulated devices";
+ for(const [label,url] of [["Desktop","?"],["Mobile 320px","?width=320"],["Dark mobile","?width=320&theme=dark"],["Dark desktop","?theme=dark"]]){const a=document.createElement("a");a.textContent=label;a.href=url;nav.append(a);}document.body.append(nav);
+ const frame=document.createElement("iframe");frame.title="HA+ IR panel preview";frame.style.width=params.get("width")?params.get("width")+"px":"calc(100% - 40px)";frame.src="?frame=1&theme="+(params.get("theme")||"light");document.body.append(frame);
+}
+</script><script src="../custom_components/broadlink_ir_mapper/frontend/ir-mapper.js"></script><script>
+if(params.has("frame")){
+ const colors=[{name:"Coral",rgb:[255,90,80]},{name:"Amber",rgb:[255,180,50]},{name:"Mint",rgb:[82,210,164]},{name:"Blue",rgb:[75,140,255]},{name:"Lavender",rgb:[165,126,230]},{name:"White",rgb:[255,255,255]}];
+ const panel=document.createElement("ha-plus-ir-panel");document.body.append(panel);
+ const make=(id,name,on)=>({entity_id:id,state:on?"on":"off",attributes:{friendly_name:name,ir_mapper:true,ir_remote:"remote.living_room",brightness:180,rgb_color:[165,126,230],effect_list:["Gentle fade","Flash","Smooth"],ir_colors:colors,ir_dimmable:true,ir_brightness_steps:10,ir_can_resynchronize:true}});
+ const hass={user:{is_admin:true},states:{"remote.living_room":{state:"on",attributes:{}},"light.living_room":make("light.living_room","Living room",true),"light.bedroom":make("light.bedroom","Bedroom strip",false)},async callService(domain,service,data){await new Promise(r=>setTimeout(r,150));const s=this.states[data.entity_id];if(service==="turn_off")s.state="off";else s.state="on";if(data.brightness)s.attributes.brightness=data.brightness;if(data.rgb_color){s.attributes.rgb_color=data.rgb_color;s.attributes.effect=null;}if(data.effect)s.attributes.effect=data.effect;if(service==="resynchronize")s.attributes.brightness=255;panel.hass=this;}};
+ panel.hass=hass;
+}
+</script></body></html>

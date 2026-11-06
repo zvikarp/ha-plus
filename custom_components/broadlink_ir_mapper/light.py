@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import binascii
+import math
 from typing import Any
 
 import voluptuous as vol
@@ -30,8 +31,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 
-def ir_code(value: Any) -> str:
+def ir_code(value: Any) -> str | dict[str, str]:
     """Validate raw or explicitly prefixed base64, retaining existing YAML values."""
+    if isinstance(value, dict):
+        return vol.Schema(
+            {
+                vol.Required("device"): vol.All(cv.string, vol.Length(min=1)),
+                vol.Required("command"): vol.All(cv.string, vol.Length(min=1)),
+            }
+        )(value)
     value = cv.string(value).strip()
     raw = value.removeprefix("b64:")
     try:
@@ -67,6 +75,9 @@ PLATFORM_SCHEMA = LIGHT_PLATFORM_SCHEMA.extend(
         vol.Optional("colors", default=[]): vol.All(cv.ensure_list, [COLOR_SCHEMA]),
         vol.Optional("effects", default=[]): vol.All(cv.ensure_list, [EFFECT_SCHEMA]),
         vol.Optional(CONF_UNIQUE_ID): cv.string,
+        vol.Optional("brightness_steps"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
     }
 )
 
@@ -78,7 +89,32 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up lights from the existing YAML platform."""
-    async_add_entities([BroadLinkIRLight(config)])
+    from .frontend import async_register_frontend
+
+    await async_register_frontend(hass)
+    _add_entities(config, async_add_entities)
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    definition = {**entry.data, **entry.options}
+    definition.pop("learned_device", None)
+    config = PLATFORM_SCHEMA({"platform": "broadlink_ir_mapper", **definition})
+    _add_entities(config, async_add_entities, entry)
+
+
+def _add_entities(config, async_add_entities, entry=None):
+    from homeassistant.helpers import entity_platform
+
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service("resynchronize", {}, "async_resynchronize")
+    entity = BroadLinkIRLight(config)
+    if entry is not None:
+        entity._attr_device_info = {
+            "identifiers": {("broadlink_ir_mapper", config["unique_id"])},
+            "name": config["name"],
+            "model": "IR light",
+        }
+    async_add_entities([entity])
 
 
 class BroadLinkIRLight(LightEntity):
@@ -115,6 +151,40 @@ class BroadLinkIRLight(LightEntity):
         self._attr_rgb_color = tuple(self._colors[0]["rgb"]) if self._colors else None
         self._attr_effect = None
         self._command_lock = asyncio.Lock()
+        self._brightness_step = (
+            255 / config["brightness_steps"] if "brightness_steps" in config else 25
+        )
+        self._last_error = None
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "ir_mapper": True,
+            "ir_remote": self._remote,
+            "ir_colors": [
+                {"name": c[CONF_NAME], "rgb": c["rgb"]} for c in self._colors
+            ],
+            "ir_dimmable": self._dimmable,
+            "ir_brightness_steps": round(255 / self._brightness_step),
+            "ir_can_resynchronize": "brightness_up" in self._codes,
+            "ir_last_error": self._last_error,
+        }
+
+    async def async_resynchronize(self):
+        """Saturate brightness upward to establish a known full-brightness baseline."""
+        async with self._command_lock:
+            if "brightness_up" not in self._codes:
+                raise ServiceValidationError(
+                    "Learn brightness up before resynchronizing"
+                )
+            try:
+                await self._send_ir_command(self._codes["power_on"])
+                self._attr_is_on = True
+                for _ in range(math.ceil(255 / self._brightness_step)):
+                    await self._send_ir_command(self._codes["brightness_up"])
+                self._attr_brightness = 255
+            finally:
+                self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Send commands in order and expose only successfully submitted changes."""
@@ -183,23 +253,46 @@ class BroadLinkIRLight(LightEntity):
         # keeps repeated absolute targets from oscillating around a 25-point step.
         difference = abs(target - current)
         steps = (
-            (difference + 24) // 25 if target in (1, 255) else round(difference / 25)
+            math.ceil(difference / self._brightness_step)
+            if target in (1, 255)
+            else round(difference / self._brightness_step)
         )
         code = self._codes["brightness_up" if direction > 0 else "brightness_down"]
         for _ in range(steps):
             await self._send_ir_command(code)
             self._attr_brightness = max(
-                1, min(255, self._attr_brightness + direction * 25)
+                1,
+                min(
+                    255,
+                    round(self._attr_brightness + direction * self._brightness_step),
+                ),
             )
 
-    async def _send_ir_command(self, code: str) -> None:
-        state = self.hass.states.get(self._remote)
-        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "off"):
-            raise HomeAssistantError(f"BroadLink remote {self._remote} is unavailable")
-        await self.hass.services.async_call(
-            "remote",
-            "send_command",
-            {"entity_id": self._remote, "command": f"b64:{code.removeprefix('b64:')}"},
-            blocking=True,
-            context=self._context,
-        )
+    async def _send_ir_command(self, code: str | dict[str, str]) -> None:
+        try:
+            state = self.hass.states.get(self._remote)
+            if state is None or state.state in (
+                STATE_UNAVAILABLE,
+                STATE_UNKNOWN,
+                "off",
+            ):
+                raise HomeAssistantError(
+                    f"BroadLink remote {self._remote} is unavailable"
+                )
+            payload = (
+                code
+                if isinstance(code, dict)
+                else {"command": f"b64:{code.removeprefix('b64:')}"}
+            )
+            await self.hass.services.async_call(
+                "remote",
+                "send_command",
+                {"entity_id": self._remote, **payload},
+                blocking=True,
+                context=self._context,
+            )
+        except (HomeAssistantError, ValueError, OSError) as err:
+            self._last_error = str(err)
+            raise HomeAssistantError(str(err)) from err
+        else:
+            self._last_error = None

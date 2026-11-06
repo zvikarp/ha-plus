@@ -13,5 +13,5 @@ latest stable GitHub Release after the matching GHCR image is available.
 ## BroadLink IR Remote Mapper
 
 [Installation and configuration](broadlink-ir-mapper/README.md) for the
-YAML-configured Home Assistant integration. Source lives under
+Home Assistant integration with guided IR learning and a HA+ control panel. Source lives under
 `custom_components/broadlink_ir_mapper`; this is an integration, not an add-on.
