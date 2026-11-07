@@ -6,9 +6,9 @@ Home Assistant Apps
 
 ## HA+ Matter Hub
 
-The Matter Hub app uses the versioned container image published by
-[ha-plus-matter-hub](https://github.com/zvikarp/ha-plus-matter-hub). Its manifest and changelog are synchronized from the
-latest stable GitHub Release after the matching GHCR image is available.
+HA+ Matter Hub is maintained in its own repository as a Marketplace/HACS
+integration. Installation instructions and releases are available in
+[ha-plus-matter-hub](https://github.com/zvikarp/ha-plus-matter-hub).
 
 ## HA+ IR Mapper
 
