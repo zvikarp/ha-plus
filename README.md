@@ -16,3 +16,8 @@ integration. Installation instructions and releases are available in
 own repository, including guided IR learning, the HA+ sidebar/dashboard card,
 HACS metadata, tests, and releases. Add that repository to HACS as an Integration.
 Existing users can follow the [migration guide](https://github.com/zvikarp/ha-plus-ir-mapper#moving-from-the-ha-plus-repository).
+
+## RGB Light Button Card
+
+[Install the dashboard card](./rgb-light-button-card/INSTALLATION.md) to control
+RGB lights with color presets, brightness, and supported effects.

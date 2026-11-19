@@ -9,7 +9,7 @@ A custom Home Assistant Lovelace card for controlling RGB lights with preset col
 - **Power Control**: Simple ON/OFF toggle button
 - **Preset Color Buttons**: Quick access to common colors (default colors match typical cheap LED remotes)
 - **Brightness Control**: Slider for adjusting brightness
-- **Effect Modes**: Flash, Strobe, Fade, and Smooth effects
+- **Effect Modes**: Flash, Strobe, Fade, and Smooth presets when supported by the light
 - **Fully Configurable**: Customize colors, effects, and layout per light instance
 - **Works with Any RGB Light**: Use with cheap RGB strips or regular lights with limited color options
 
@@ -22,33 +22,9 @@ The card defaults to colors commonly found on cheap AliExpress LED remote contro
 
 ## Installation
 
-### Method 1: Manual Installation
-
-1. Download `rgb-light-button-card.js` from this repository
-2. Copy it to your Home Assistant `config/www` folder
-3. Add the following to your `configuration.yaml`:
-
-```yaml
-lovelace:
-  resources:
-    - url: /local/rgb-light-button-card.js
-      type: module
-```
-
-4. Restart Home Assistant
-5. Clear your browser cache
-
-### Method 2: HACS (Home Assistant Community Store)
-
-If this card is published to HACS:
-
-1. Open HACS in Home Assistant
-2. Go to "Frontend"
-3. Click the "+" button
-4. Search for "RGB Light Button Card"
-5. Click "Install"
-6. Restart Home Assistant
-7. Clear your browser cache
+[Install the JavaScript resource manually](./INSTALLATION.md) through the dashboard
+resource UI or YAML. This repository's card lives in a subdirectory, so install it
+as a manual dashboard resource.
 
 ## Configuration
 
@@ -104,9 +80,9 @@ effects:
 | `title` | string | '' | Card title (optional) |
 | `show_brightness` | boolean | true | Show brightness slider |
 | `show_effects` | boolean | true | Show effect buttons |
-| `columns` | number | 4 | Number of color button columns |
-| `colors` | array | Default 12 colors | Custom color buttons (see below) |
-| `effects` | array | Default 4 effects | Custom effect buttons (see below) |
+| `columns` | positive integer | 4 | Maximum number of color button columns |
+| `colors` | array | Default 12 colors | Custom color buttons. Use `[]` to hide the section |
+| `effects` | array | Default 4 effects | Custom effect buttons. Use `[]` to hide the section |
 
 ### Custom Colors Format
 
@@ -176,6 +152,11 @@ effects:
 
 ## Compatibility
 
+When Home Assistant reports the light's capabilities, the card only displays
+controls the light supports. If it reports an effect list, the card only shows
+configured presets with matching effect IDs. Brightness, color, and effect
+controls become available when the light is on.
+
 This card works with any Home Assistant light entity that supports:
 - Basic on/off control
 - RGB color control (`rgb_color`)
@@ -199,7 +180,7 @@ Compatible with:
 ## Troubleshooting
 
 ### Card doesn't appear
-- Make sure you've added the resource to `configuration.yaml`
+- Check that the JavaScript module is listed in your dashboard resources or YAML resources
 - Clear your browser cache (Ctrl+F5)
 - Check the browser console for errors
 
@@ -214,9 +195,18 @@ Compatible with:
 
 ## Screenshots
 
+To try the card with a simulated light, serve this folder over HTTP and open
+`preview.html`.
+
 ![RGB Light Button Card Preview](https://github.com/user-attachments/assets/8f3eb5c4-93dc-492f-a605-33f997b849f7)
 
 *The card showing all default features: power toggle, brightness slider, 12 color buttons, and 4 effect buttons*
+
+## Regression tests
+
+From the repository root, run `python3 -m http.server 8000`, then open
+[the browser test page](http://localhost:8000/rgb-light-button-card/tests/browser.html).
+The tests run with a simulated Home Assistant light.
 
 ## Contributing
 

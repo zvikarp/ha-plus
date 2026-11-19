@@ -41,4 +41,4 @@ Any Home Assistant light that supports RGB colors:
 - Zigbee RGB lights
 - And more!
 
-See the full [README](https://github.com/zvikarp/ha-plus-addons/tree/main/rgb-light-button-card) for detailed configuration options.
+See the full [README](https://github.com/zvikarp/ha-plus/tree/main/rgb-light-button-card) for detailed configuration options.
