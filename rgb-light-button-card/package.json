@@ -16,10 +16,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zvikarp/ha-plus-addons"
+    "url": "https://github.com/zvikarp/ha-plus"
   },
   "bugs": {
-    "url": "https://github.com/zvikarp/ha-plus-addons/issues"
+    "url": "https://github.com/zvikarp/ha-plus/issues"
   },
-  "homepage": "https://github.com/zvikarp/ha-plus-addons/tree/main/rgb-light-button-card"
+  "homepage": "https://github.com/zvikarp/ha-plus/tree/main/rgb-light-button-card"
 }

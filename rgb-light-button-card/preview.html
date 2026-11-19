@@ -1,385 +1,81 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RGB Light Button Card - Preview</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: "Roboto", "Noto", sans-serif;
-            background: #111111;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 40px;
-            align-items: center;
-            min-height: 100vh;
-        }
-        
-        h1 {
-            color: #ffffff;
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 32px;
-            font-weight: 400;
-        }
-        
-        .description {
-            color: #cccccc;
-            max-width: 600px;
-            text-align: center;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-        
-        .preview-container {
-            max-width: 500px;
-            width: 100%;
-        }
-        
-        /* Card styling */
-        .ha-card {
-            background: #1c1c1c;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px;
-            font-size: 18px;
-            font-weight: 500;
-            color: #ffffff;
-            border-bottom: 1px solid #333333;
-        }
-        
-        .card-content {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        /* Control section */
-        .control-section {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        
-        .entity-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .entity-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: #ffffff;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .entity-state {
-            font-size: 12px;
-            color: #999999;
-            margin-top: 2px;
-        }
-        
-        .power-button {
-            flex-shrink: 0;
-            width: 48px;
-            height: 48px;
-            border: none;
-            border-radius: 24px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-            background: #03a9f4;
-            color: white;
-        }
-        
-        .power-button::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: currentColor;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        
-        .power-button:hover::before {
-            opacity: 0.08;
-        }
-        
-        .power-icon {
-            width: 24px;
-            height: 24px;
-            fill: currentColor;
-        }
-        
-        /* Brightness section */
-        .brightness-section {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .brightness-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .brightness-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: #999999;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-        
-        .brightness-value {
-            font-size: 12px;
-            font-weight: 500;
-            color: #ffffff;
-        }
-        
-        .brightness-slider-wrapper {
-            position: relative;
-            padding: 8px 0;
-        }
-        
-        .brightness-slider {
-            width: 100%;
-            height: 6px;
-            -webkit-appearance: none;
-            appearance: none;
-            background: transparent;
-            outline: none;
-            cursor: pointer;
-        }
-        
-        .brightness-slider::-webkit-slider-track {
-            width: 100%;
-            height: 6px;
-            background: #3a3a3a;
-            border-radius: 3px;
-        }
-        
-        .brightness-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: #03a9f4;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 2px solid #1c1c1c;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            transition: transform 0.1s ease;
-        }
-        
-        .brightness-slider::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
-        }
-        
-        /* Section divider */
-        .section-divider {
-            height: 1px;
-            background: #333333;
-            margin: 4px 0;
-        }
-        
-        /* Section title */
-        .section-title {
-            font-size: 12px;
-            font-weight: 500;
-            color: #999999;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 12px;
-        }
-        
-        /* Colors section */
-        .colors-section {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-        }
-        
-        .color-button {
-            aspect-ratio: 1;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-        }
-        
-        .color-button::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 50%, rgba(0, 0, 0, 0.2) 100%);
-            pointer-events: none;
-        }
-        
-        .color-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
-        }
-        
-        /* Effects section */
-        .effects-section {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        
-        .effect-button {
-            padding: 14px 16px;
-            border: 1px solid #333333;
-            border-radius: 8px;
-            background: #1c1c1c;
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .effect-button::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: #03a9f4;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        
-        .effect-button:hover::before {
-            opacity: 0.08;
-        }
-        
-        .effect-button:hover {
-            border-color: #03a9f4;
-            color: #03a9f4;
-        }
-        
-        .effect-button-text {
-            position: relative;
-            z-index: 1;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="icon.png">
+  <title>RGB Light Button Card Preview</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --primary-color: #0078a6;
+      --text-primary-color: white;
+      --primary-text-color: CanvasText;
+      --secondary-text-color: GrayText;
+      --card-background-color: Canvas;
+      --divider-color: color-mix(in srgb, CanvasText 20%, Canvas);
+      --disabled-color: color-mix(in srgb, CanvasText 16%, Canvas);
+    }
+    body {
+      font: 16px system-ui, sans-serif;
+      background: color-mix(in srgb, CanvasText 5%, Canvas);
+      max-width: 28rem;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    rgb-light-button-card {
+      background: var(--card-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 12px;
+    }
+  </style>
 </head>
 <body>
-    <h1>RGB Light Button Card Preview</h1>
-    <p class="description">
-        Refined design matching Home Assistant's Material Design principles with improved hierarchy, spacing, and visual polish.
-    </p>
-    
-    <div class="preview-container">
-        <div class="ha-card">
-            <div class="card-header">Bedroom RGB Strip</div>
-            <div class="card-content">
-                <!-- Control Section -->
-                <div class="control-section">
-                    <div class="entity-info">
-                        <div class="entity-name">LED Strip</div>
-                        <div class="entity-state">On • 75%</div>
-                    </div>
-                    <button class="power-button">
-                        <svg class="power-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M16.56 5.44l-1.45 1.45A5.969 5.969 0 0 1 18 12a6 6 0 0 1-6 6 6 6 0 0 1-6-6c0-2.17 1.16-4.06 2.88-5.12L7.44 5.44A7.961 7.961 0 0 0 4 12a8 8 0 0 0 8 8 8 8 0 0 0 8-8c0-2.72-1.36-5.12-3.44-6.56M13 3h-2v10h2V3z"/>
-                        </svg>
-                    </button>
-                </div>
-                
-                <!-- Brightness Section -->
-                <div class="brightness-section">
-                    <div class="brightness-header">
-                        <span class="brightness-label">Brightness</span>
-                        <span class="brightness-value">75%</span>
-                    </div>
-                    <div class="brightness-slider-wrapper">
-                        <input 
-                            type="range" 
-                            class="brightness-slider" 
-                            min="0" 
-                            max="255" 
-                            value="191"
-                        >
-                    </div>
-                </div>
-                
-                <div class="section-divider"></div>
-                
-                <!-- Colors Section -->
-                <div>
-                    <div class="section-title">Colors</div>
-                    <div class="colors-section">
-                        <button class="color-button" style="background-color: rgb(255, 0, 0)"></button>
-                        <button class="color-button" style="background-color: rgb(0, 255, 0)"></button>
-                        <button class="color-button" style="background-color: rgb(0, 0, 255)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 255, 255)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 165, 0)"></button>
-                        <button class="color-button" style="background-color: rgb(0, 255, 255)"></button>
-                        <button class="color-button" style="background-color: rgb(128, 0, 128)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 255, 0)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 192, 203)"></button>
-                        <button class="color-button" style="background-color: rgb(50, 205, 50)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 0, 255)"></button>
-                        <button class="color-button" style="background-color: rgb(255, 230, 180)"></button>
-                    </div>
-                </div>
-                
-                <div class="section-divider"></div>
-                
-                <!-- Effects Section -->
-                <div>
-                    <div class="section-title">Effects</div>
-                    <div class="effects-section">
-                        <button class="effect-button">
-                            <span class="effect-button-text">Flash</span>
-                        </button>
-                        <button class="effect-button">
-                            <span class="effect-button-text">Strobe</span>
-                        </button>
-                        <button class="effect-button">
-                            <span class="effect-button-text">Fade</span>
-                        </button>
-                        <button class="effect-button">
-                            <span class="effect-button-text">Smooth</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <p class="description">
-        Clean, professional design with proper sectioning, improved spacing, and subtle visual feedback that feels right at home in Home Assistant.
-    </p>
+  <h1>RGB Light Button Card</h1>
+  <p>Try the dashboard card with a simulated light.</p>
+  <rgb-light-button-card></rgb-light-button-card>
+  <p id="preview-state" role="status"></p>
+  <script type="module">
+    import './rgb-light-button-card.js';
+
+    const card = document.querySelector('rgb-light-button-card');
+    const previewState = document.querySelector('#preview-state');
+    const entity = 'light.preview';
+    let light = {
+      entity_id: entity,
+      state: 'on',
+      attributes: {
+        friendly_name: 'Living Room LED Strip',
+        brightness: 192,
+        rgb_color: [255, 230, 180],
+        supported_color_modes: ['rgb'],
+        effect_list: ['flash', 'strobe', 'fade', 'smooth'],
+      },
+    };
+    function update() {
+      const { rgb_color: rgb, effect } = light.attributes;
+      previewState.textContent = light.state === 'off'
+        ? 'Simulated light is off.'
+        : `Simulated color is RGB (${rgb.join(', ')}).${effect ? ` Active effect is ${effect}.` : ''}`;
+      card.hass = {
+        states: { [entity]: light },
+        async callService(domain, service, data) {
+          const { brightness, rgb_color, effect } = data;
+          const attributes = { ...light.attributes };
+          if (brightness !== undefined) attributes.brightness = brightness;
+          if (rgb_color) {
+            attributes.rgb_color = rgb_color;
+            delete attributes.effect;
+          }
+          if (effect) attributes.effect = effect;
+          light = { ...light, state: service === 'turn_off' ? 'off' : 'on', attributes };
+          update();
+        },
+      };
+    }
+
+    card.setConfig({ entity });
+    update();
+  </script>
 </body>
 </html>
