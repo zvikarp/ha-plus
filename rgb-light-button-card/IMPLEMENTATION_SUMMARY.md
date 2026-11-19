@@ -1,5 +1,8 @@
 # Implementation Summary
 
+These notes describe the original implementation. See the [current README](./README.md)
+and [installation guide](./INSTALLATION.md) for supported behavior and setup.
+
 ## Changes Made
 
 ### 1. Repository Rebranding (Add-ons → Apps)

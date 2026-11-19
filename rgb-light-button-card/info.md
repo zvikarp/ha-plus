@@ -13,7 +13,7 @@ Perfect for:
 ## Features
 
 - **Preset Color Buttons** - Quick access to 12 default colors (customizable)
-- **Effect Controls** - Flash, Strobe, Fade, Smooth (customizable)
+- **Effect Controls** - Automatic presets based on your light, with optional custom presets
 - **Brightness Slider** - Easy brightness adjustment
 - **Power Toggle** - Simple ON/OFF button
 - **Fully Configurable** - Customize colors, effects, and layout per light

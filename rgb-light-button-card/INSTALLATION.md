@@ -11,8 +11,9 @@ as a dashboard resource.
    Dashboards**, open the three-dot menu, and select **Resources**.
 4. Add `/local/rgb-light-button-card.js` as a **JavaScript module** and refresh
    your dashboard.
-5. Edit the dashboard, add the **RGB Light Button Card**, and configure the
-   entity. You can also add a **Manual** card with this YAML.
+5. Edit the dashboard and add the **RGB Light Button Card**. Use its code editor
+   to set `entity` to your light. You can also add a **Manual** card with this
+   YAML.
 
    ```yaml
    type: custom:rgb-light-button-card
@@ -33,7 +34,10 @@ lovelace:
 ```
 
 Reload resources or restart Home Assistant to apply the change, then refresh the
-dashboard.
+dashboard. On older Home Assistant versions that reject `resource_mode`, use the
+Resources UI if your dashboard uses storage mode. If your dashboard already
+uses `lovelace.mode: yaml`, keep that setting and add the module under
+`lovelace.resources`.
 
 ## Troubleshooting
 

@@ -1,0 +1,41 @@
+name: RGB card checks
+
+'on':
+  pull_request:
+    paths:
+      - rgb-light-button-card/**
+      - .github/workflows/card-checks.yml
+  push:
+    branches: [main]
+    paths:
+      - rgb-light-button-card/**
+      - .github/workflows/card-checks.yml
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check JavaScript syntax
+        run: node --check rgb-light-button-card/rgb-light-button-card.js
+      - name: Run dashboard regressions in Chrome
+        shell: bash
+        run: |
+          page=http://127.0.0.1:8742/rgb-light-button-card/tests/browser.html
+          python3 -m http.server 8742 --bind 127.0.0.1 > "$RUNNER_TEMP/ha-plus-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --fail --silent --show-error --retry 5 --retry-connrefused "$page" > /dev/null
+
+          results="$RUNNER_TEMP/ha-plus-card-results.html"
+          google-chrome --headless --disable-dev-shm-usage \
+            --user-data-dir="$RUNNER_TEMP/ha-plus-card-chrome" \
+            --virtual-time-budget=10000 --dump-dom "$page" > "$results"
+          grep -Eo '<p id="summary"[^>]*>[^<]*</p>|<li>FAIL [^<]*</li>' "$results"
+          grep -Eq 'id="summary"[^>]*data-status="pass"' "$results"

@@ -10,7 +10,24 @@ const CARD_TYPE = 'rgb-light-button-card';
 const COLOR_MODES = ['hs', 'xy', 'rgb', 'rgbw', 'rgbww'];
 const BRIGHTNESS_MODES = [...COLOR_MODES, 'brightness', 'color_temp', 'white'];
 const LIGHT_ENTITY = /^light\.[a-z0-9_]+$/;
-const brightnessPercent = (brightness) => Math.round(brightness * 100 / 255);
+const LEGACY_EFFECT = 4;
+const LEGACY_COLOR = 16;
+// The older brightness, color-temperature, color and white-value flags imply dimming.
+const LEGACY_BRIGHTNESS = 1 | 2 | LEGACY_COLOR | 128;
+const isAvailable = (state) => state?.state === 'on' || state?.state === 'off';
+
+function lightCapabilities({ supported_color_modes: modes, supported_features: flags } = {}) {
+  if (Array.isArray(modes) && modes.some((mode) => mode !== 'unknown')) {
+    return {
+      color: modes.some((mode) => COLOR_MODES.includes(mode)),
+      brightness: modes.some((mode) => BRIGHTNESS_MODES.includes(mode)),
+    };
+  }
+  if (!Array.isArray(modes) && Number.isInteger(flags)) {
+    return { color: Boolean(flags & LEGACY_COLOR), brightness: Boolean(flags & LEGACY_BRIGHTNESS) };
+  }
+  return {};
+}
 
 // Default colors based on typical cheap LED remote controls
 const DEFAULT_COLORS = [
@@ -40,21 +57,35 @@ class RgbLightButtonCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._errorMessage = '';
+    this.resetCommands();
   }
 
   static getStubConfig(hass) {
     const lights = Object.values(hass?.states ?? {}).filter((state) => LIGHT_ENTITY.test(state.entity_id));
-    const colorLight = lights.find((state) => {
-      const modes = state.attributes.supported_color_modes;
-      return Array.isArray(modes) && modes.some((mode) => COLOR_MODES.includes(mode));
-    });
-    return { entity: (colorLight ?? lights[0])?.entity_id ?? 'light.your_light' };
+    const available = lights.filter(isAvailable);
+    const choices = available.length ? available : lights;
+    const colorLight = choices.find((state) => lightCapabilities(state.attributes).color);
+    return { entity: (colorLight ?? choices[0])?.entity_id ?? 'light.your_light' };
   }
 
   set hass(hass) {
+    const previous = this._hass;
+    const wasAvailable = isAvailable(this.light);
     this._hass = hass;
+    if (previous && (!hass || hass.connected === false
+        || (previous.connection && previous.connection !== hass.connection)
+        || (wasAvailable && !isAvailable(this.light)))) {
+      this.resetCommands();
+    }
     this.updateCard();
+  }
+
+  resetCommands() {
+    this._action = null;
+    this._powerAction = null;
+    this._brightnessAction = null;
+    this._brightnessDraft = null;
+    this._errorMessage = '';
   }
 
   setConfig(config) {
@@ -62,7 +93,7 @@ class RgbLightButtonCard extends HTMLElement {
       throw new Error('Choose a light entity, such as light.bedroom_strip.');
     }
     const colors = config.colors ?? DEFAULT_COLORS;
-    const effects = config.effects ?? DEFAULT_EFFECTS;
+    const effects = config.effects;
     const columns = config.columns ?? 4;
     const title = config.title ?? '';
     const show_brightness = config.show_brightness ?? true;
@@ -84,10 +115,10 @@ class RgbLightButtonCard extends HTMLElement {
       }
       return { name: color.name, rgb: [...color.rgb] };
     });
-    if (!Array.isArray(effects)) {
+    if (effects != null && !Array.isArray(effects)) {
       throw new Error('effects must be a list of effect presets.');
     }
-    const effectPresets = Array.from(effects, (preset, index) => {
+    const effectPresets = effects == null ? null : Array.from(effects, (preset, index) => {
       if (typeof preset?.name !== 'string' || !preset.name.trim()
           || typeof preset.effect !== 'string' || !preset.effect.trim()) {
         throw new Error(`Effect preset ${index + 1} needs a name and an effect ID.`);
@@ -99,89 +130,148 @@ class RgbLightButtonCard extends HTMLElement {
       entity: config.entity, title, columns, show_brightness, show_effects,
       colors: colorPresets, effects: effectPresets,
     };
-    this._action = null;
-    this._errorMessage = '';
-    this._layoutKey = null;
+    this.resetCommands();
+    this.render();
     this.updateCard();
   }
 
+  get light() {
+    return this._hass?.states?.[this._config?.entity];
+  }
+
   getControls(state) {
-    const modes = state?.attributes.supported_color_modes;
-    const knownModes = Array.isArray(modes) && modes.some((mode) => mode !== 'unknown');
-    const hasBrightness = this._config.show_brightness
-      && (!knownModes || modes.some((mode) => BRIGHTNESS_MODES.includes(mode)));
-    const hasColors = this._config.colors.length > 0
-      && (!knownModes || modes.some((mode) => COLOR_MODES.includes(mode)));
+    const capabilities = lightCapabilities(state?.attributes);
+    const hasBrightness = this._config.show_brightness && capabilities.brightness !== false;
+    const hasColors = this._config.colors.length > 0 && capabilities.color !== false;
     const { effect_list: effectList, supported_features: features } = state?.attributes ?? {};
-    let effects = this._config.show_effects ? this._config.effects : [];
-    if (Array.isArray(effectList)) {
-      effects = effects.filter((preset) => effectList.includes(preset.effect));
-    } else if (Number.isInteger(features) && !(features & 4)) {
-      // Home Assistant's legacy LightEntityFeature.EFFECT flag.
-      effects = [];
+    const customEffects = this._config.effects;
+    let effects = [];
+    if (this._config.show_effects) {
+      if (Array.isArray(effectList)) {
+        const available = new Set(effectList.filter((effect) => typeof effect === 'string' && effect.trim()));
+        if (customEffects) {
+          effects = customEffects.filter((preset) => available.has(preset.effect));
+        } else {
+          effects = DEFAULT_EFFECTS.filter((preset) => available.delete(preset.effect));
+          for (const effect of available) {
+            if (effects.length === DEFAULT_EFFECTS.length) break;
+            effects.push({ name: effect, effect });
+          }
+        }
+      } else if (!Number.isInteger(features) || (features & LEGACY_EFFECT)) {
+        effects = customEffects ?? DEFAULT_EFFECTS;
+      }
     }
     return { hasBrightness, hasColors, effects };
   }
 
-  updateCard() {
-    if (!this._config || !this._hass) return;
-    const state = this._hass.states[this._config.entity];
-    const controls = this.getControls(state);
-    const layoutKey = state
-      ? JSON.stringify([controls.hasBrightness, controls.hasColors, controls.effects.map((preset) => preset.effect)])
-      : 'missing';
+  text(key, fallback) {
+    return this._hass?.localize?.(key) || fallback;
+  }
 
-    if (layoutKey !== this._layoutKey) {
-      this._layoutKey = layoutKey;
-      this._brightnessDraft = null;
-      if (!state) {
-        this.shadowRoot.innerHTML = '<ha-card><p style="padding: 16px" role="status"></p></ha-card>';
-        this.shadowRoot.querySelector('p').textContent = `Entity not found: ${this._config.entity}`;
-        return;
-      }
-      this.render(controls);
+  formatBrightness(brightness) {
+    const language = this._hass?.locale?.language ?? this._hass?.language;
+    if (!this._percentFormatter || this._percentLanguage !== language) {
+      this._percentLanguage = language;
+      this._percentFormatter = new Intl.NumberFormat(language, {
+        style: 'percent', maximumFractionDigits: 0,
+      });
     }
-    if (!state) return;
+    return this._percentFormatter.format(brightness / 255);
+  }
 
-    const isOn = state.state === 'on';
-    const available = isOn || state.state === 'off';
-    const reported = state.attributes.brightness;
+  disconnectedCallback() {
+    this.resetCommands();
+    this.updateCard();
+  }
+
+  stateText(state) {
+    if (!this._hass) return 'Loading…';
+    if (this._hass.connected === false) {
+      return this.text('ui.notification_toast.connection_lost', 'Connection lost. Reconnecting…');
+    }
+    if (!state) return this.text('state_badge.default.entity_not_found', 'Entity not found');
+    return this._hass.formatEntityState?.(state) || {
+      on: 'On', off: 'Off', unavailable: 'Unavailable', unknown: 'Unknown',
+    }[state.state] || state.state;
+  }
+
+  updateCard() {
+    if (!this._config) return;
+    const state = this.light;
+    const disconnected = this._hass?.connected === false;
+    const isOn = state?.state === 'on';
+    const canAdjust = !disconnected && isOn && !this._powerAction;
+    const attributes = state?.attributes ?? {};
+    const { hasBrightness, hasColors, effects } = this.getControls(state);
+    const showBrightness = Boolean(state && hasBrightness);
+    const showColors = Boolean(state && hasColors);
+    const showEffects = Boolean(state && effects.length);
+    const reported = attributes.brightness;
     const brightness = isOn && Number.isInteger(reported) && reported >= 0 && reported <= 255
       ? reported : null;
-    const stateLabel = this._hass.formatEntityState?.(state) ?? {
-      on: 'On', off: 'Off', unavailable: 'Unavailable', unknown: 'Unknown',
-    }[state.state] ?? state.state;
 
     const root = this.shadowRoot;
-    root.querySelector('.entity-name').textContent = state.attributes.friendly_name || this._config.entity;
-    root.querySelector('.entity-state').textContent = brightness === null
-      ? stateLabel : `${stateLabel} • ${brightnessPercent(brightness)}%`;
+    const focused = root.activeElement;
+    const entityName = state && this._hass.formatEntityName?.(state);
+    root.querySelector('.entity-name').textContent = entityName || attributes.friendly_name || this._config.entity;
+    const stateText = this.stateText(state);
+    const status = root.querySelector('.entity-state-label');
+    if (status.textContent !== stateText) status.textContent = stateText;
+    root.querySelector('.entity-brightness').textContent = brightness === null || disconnected
+      ? '' : ` • ${this.formatBrightness(brightness)}`;
 
     const power = root.querySelector('.power-button');
-    power.disabled = !available;
+    power.disabled = disconnected || !isAvailable(state);
     power.classList.toggle('on', isOn);
     power.classList.toggle('off', !isOn);
+    power.setAttribute('aria-label', this.text('ui.card.media_player.power', 'Power'));
     power.setAttribute('aria-pressed', String(isOn));
+    power.setAttribute('aria-disabled', String(power.disabled || Boolean(this._powerAction)));
 
-    for (const control of root.querySelectorAll('.brightness-slider, .color-button, .effect-button')) {
-      control.disabled = !isOn;
+    root.querySelector('.brightness-section').hidden = !showBrightness;
+    root.querySelector('.colors-panel').hidden = !showColors;
+    root.querySelector('.effects-panel').hidden = !showEffects;
+    root.querySelector('.after-brightness').hidden = !showBrightness || !(showColors || showEffects);
+    root.querySelector('.after-colors').hidden = !showColors || !showEffects;
+    root.querySelector('.brightness-label').textContent = this.text('ui.card.light.brightness', 'Brightness');
+    root.querySelector('#colors').textContent = this.text('ui.dialogs.more_info_control.light.color', 'Colors');
+    root.querySelector('#effects').textContent = this.text('ui.panel.lovelace.editor.features.types.light-effect.effects', 'Effects');
+    this.updateEffects(state ? effects : []);
+
+    if (!canAdjust || !showBrightness) this._brightnessDraft = null;
+    root.querySelector('.brightness-slider').disabled = !canAdjust || !showBrightness;
+    for (const [index, button] of Array.from(root.querySelectorAll('.color-button')).entries()) {
+      button.disabled = !canAdjust || !showColors;
+      const rgb = this._config.colors[index].rgb;
+      const active = isOn && Array.isArray(attributes.rgb_color)
+        && attributes.rgb_color.length === 3 && rgb.every((component, index) => component === attributes.rgb_color[index]);
+      button.setAttribute('aria-pressed', String(active));
     }
-    if (!isOn) this._brightnessDraft = null;
-    this.updateBrightness(this._brightnessDraft ?? (state.state === 'off' ? 0 : brightness));
+    for (const button of root.querySelectorAll('.effect-button')) {
+      button.disabled = !canAdjust || !showEffects;
+      button.setAttribute('aria-pressed', String(isOn && button.dataset.effect === attributes.effect));
+    }
+    const active = root.activeElement;
+    if (!power.disabled && focused && (!active
+        || (active === focused && (active.disabled || active.closest('[hidden]'))))) {
+      power.focus({ preventScroll: true });
+    }
+    this.updateBrightness(this._brightnessDraft ?? this._brightnessAction?.brightness
+      ?? (state?.state === 'off' ? 0 : brightness));
     this.showError();
   }
 
   updateBrightness(brightness) {
     const slider = this.shadowRoot.querySelector('.brightness-slider');
-    if (!slider) return;
-    const label = brightness === null ? '—' : `${brightnessPercent(brightness)}%`;
+    const label = brightness === null ? '—' : this.formatBrightness(brightness);
     slider.value = brightness ?? 0;
-    slider.setAttribute('aria-valuetext', brightness === null ? 'Brightness unavailable' : label);
+    slider.setAttribute('aria-valuetext', brightness === null ? this.text('state.default.unavailable', 'Unavailable') : label);
     this.shadowRoot.querySelector('.brightness-value').textContent = label;
   }
 
-  render({ hasBrightness, hasColors, effects }) {
-    const hasEffects = effects.length > 0;
+  render() {
+    this._effectLayoutKey = null;
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -303,12 +393,12 @@ class RgbLightButtonCard extends HTMLElement {
           color: var(--primary-text-color);
         }
         .brightness-slider-wrapper {
-          position: relative;
-          padding: 8px 0;
+          display: flex;
+          align-items: center;
         }
         .brightness-slider {
           width: 100%;
-          height: 6px;
+          height: 44px;
           margin: 0;
           -webkit-appearance: none;
           appearance: none;
@@ -326,6 +416,7 @@ class RgbLightButtonCard extends HTMLElement {
           appearance: none;
           width: 20px;
           height: 20px;
+          margin-top: -7px;
           background: var(--primary-color);
           border-radius: 50%;
           cursor: pointer;
@@ -376,32 +467,40 @@ class RgbLightButtonCard extends HTMLElement {
         /* Colors section */
         .colors-section {
           display: grid;
-          grid-template-columns: repeat(${Math.min(this._config.columns, this._config.colors.length || 1)}, minmax(0, 1fr));
+          --columns: ${Math.min(this._config.columns, this._config.colors.length || 1)};
+          grid-template-columns: repeat(auto-fill,
+            minmax(min(100%, max(44px, calc((100% + 10px) / var(--columns) - 10px))), 1fr));
           gap: 10px;
         }
         .color-button {
-          aspect-ratio: 1;
-          border: none;
+          border: 1px solid var(--divider-color);
+          padding: 0;
           border-radius: 8px;
           cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-weight: 600;
-          color: white;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-          position: relative;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          display: grid;
+          grid-template-rows: minmax(44px, auto) 1fr;
+          font: inherit;
+          font-size: 12px;
+          color: var(--primary-text-color);
+          background: var(--card-background-color);
           overflow: hidden;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
         }
-        .color-button::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 50%, rgba(0, 0, 0, 0.2) 100%);
-          pointer-events: none;
+        .color-swatch {
+          aspect-ratio: 1.35;
+          min-height: 44px;
+          background: var(--swatch);
+          border-bottom: 1px solid var(--divider-color);
+        }
+        .color-label {
+          padding: 4px 2px;
+          overflow-wrap: anywhere;
+        }
+        .color-button[aria-pressed="true"],
+        .effect-button[aria-pressed="true"] {
+          border-color: var(--primary-color, currentColor);
+          box-shadow: inset 0 0 0 1px var(--primary-color, currentColor);
+          font-weight: 700;
         }
         .color-button:hover {
           transform: translateY(-2px);
@@ -456,11 +555,18 @@ class RgbLightButtonCard extends HTMLElement {
           z-index: 1;
         }
         
+        [hidden] {
+          display: none !important;
+        }
         button:disabled,
         input:disabled {
           opacity: 0.38;
           cursor: default;
           pointer-events: none;
+        }
+        .power-button[aria-disabled="true"]:not(:disabled) {
+          opacity: 0.65;
+          cursor: wait;
         }
         button:focus-visible,
         input:focus-visible {
@@ -489,7 +595,7 @@ class RgbLightButtonCard extends HTMLElement {
           <div class="control-section">
             <div class="entity-info">
               <div class="entity-name"></div>
-              <div class="entity-state"></div>
+              <div class="entity-state"><span class="entity-state-label" role="status"></span><span class="entity-brightness"></span></div>
             </div>
             <button class="power-button" type="button" aria-label="Power">
               <svg class="power-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -497,31 +603,25 @@ class RgbLightButtonCard extends HTMLElement {
               </svg>
             </button>
           </div>
-          ${hasBrightness ? `
-            <div class="brightness-section">
-              <div class="brightness-header">
-                <label class="brightness-label" for="brightness">Brightness</label>
-                <span class="brightness-value" aria-hidden="true"></span>
-              </div>
-              <div class="brightness-slider-wrapper">
-                <input id="brightness" type="range" class="brightness-slider" min="0" max="255">
-              </div>
+          <div class="brightness-section" hidden>
+            <div class="brightness-header">
+              <label class="brightness-label" for="brightness">Brightness</label>
+              <span class="brightness-value" aria-hidden="true"></span>
             </div>
-          ` : ''}
-          ${hasBrightness && (hasColors || hasEffects) ? '<div class="section-divider"></div>' : ''}
-          ${hasColors ? `
-            <section aria-labelledby="colors">
-              <h2 id="colors" class="section-title">Colors</h2>
-              <div class="colors-section"></div>
-            </section>
-          ` : ''}
-          ${hasColors && hasEffects ? '<div class="section-divider"></div>' : ''}
-          ${hasEffects ? `
-            <section aria-labelledby="effects">
-              <h2 id="effects" class="section-title">Effects</h2>
-              <div class="effects-section"></div>
-            </section>
-          ` : ''}
+            <div class="brightness-slider-wrapper">
+              <input id="brightness" type="range" class="brightness-slider" min="0" max="255" disabled>
+            </div>
+          </div>
+          <div class="section-divider after-brightness" hidden></div>
+          <section class="colors-panel" aria-labelledby="colors" hidden>
+            <h2 id="colors" class="section-title">Colors</h2>
+            <div class="colors-section"></div>
+          </section>
+          <div class="section-divider after-colors" hidden></div>
+          <section class="effects-panel" aria-labelledby="effects" hidden>
+            <h2 id="effects" class="section-title">Effects</h2>
+            <div class="effects-section"></div>
+          </section>
           <p class="service-error" role="alert"></p>
         </div>
       </ha-card>
@@ -531,49 +631,85 @@ class RgbLightButtonCard extends HTMLElement {
     const header = root.querySelector('.card-header');
     if (header) header.textContent = this._config.title;
 
-    root.querySelector('.power-button').addEventListener('click', () => this.togglePower());
+    // One delegated listener per card, including effects inserted after discovery.
+    root.querySelector('ha-card').addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button || button.getRootNode() !== root || button.disabled || this._powerAction) return;
+      if (button.matches('.power-button')) {
+        this.callLight(this.light.state === 'on' ? 'turn_off' : 'turn_on', {}, { power: true });
+      } else if (button.matches('.color-button')) {
+        const color = this._config.colors[Number(button.dataset.index)];
+        this.callLight('turn_on', { rgb_color: [...color.rgb] });
+      } else if (button.matches('.effect-button')) {
+        this.callLight('turn_on', { effect: button.dataset.effect });
+      }
+    });
+
     const slider = root.querySelector('.brightness-slider');
-    if (slider) {
-      slider.addEventListener('input', () => {
-        this._brightnessDraft = Number(slider.value);
-        this.updateBrightness(this._brightnessDraft);
-      });
-      slider.addEventListener('change', () => {
-        const brightness = Number(slider.value);
-        this._brightnessDraft = null;
-        this.setBrightness(brightness);
-      });
-      slider.addEventListener('pointercancel', () => this.cancelBrightnessEdit());
-      slider.addEventListener('blur', () => this.cancelBrightnessEdit());
-    }
+    slider.addEventListener('input', () => {
+      if (slider.getRootNode() !== root || slider.disabled) return;
+      this._brightnessDraft = Number(slider.value);
+      this.updateBrightness(this._brightnessDraft);
+    });
+    slider.addEventListener('change', () => {
+      if (slider.getRootNode() !== root || slider.disabled) return;
+      const brightness = Number(slider.value);
+      this._brightnessDraft = null;
+      if (brightness === 0) {
+        this.callLight('turn_off', {}, { brightness, power: true });
+      } else {
+        this.callLight('turn_on', { brightness }, { brightness });
+      }
+    });
+    const cancel = () => {
+      if (slider.getRootNode() === root) this.cancelBrightnessEdit();
+    };
+    slider.addEventListener('pointercancel', cancel);
+    slider.addEventListener('blur', cancel);
 
     const colorsSection = root.querySelector('.colors-section');
-    if (colorsSection) {
-      for (const color of this._config.colors) {
-        const button = this.ownerDocument.createElement('button');
-        button.type = 'button';
-        button.className = 'color-button';
-        button.style.backgroundColor = `rgb(${color.rgb.join(',')})`;
-        button.title = color.name;
-        button.setAttribute('aria-label', color.name);
-        button.addEventListener('click', () => this.callLight('turn_on', { rgb_color: [...color.rgb] }));
-        colorsSection.append(button);
-      }
-    }
+    this._config.colors.forEach((color, index) => {
+      const button = this.ownerDocument.createElement('button');
+      button.type = 'button';
+      button.className = 'color-button';
+      button.dataset.index = index;
+      button.title = color.name;
+      button.setAttribute('aria-label', color.name);
+      const swatch = this.ownerDocument.createElement('span');
+      swatch.className = 'color-swatch';
+      swatch.style.setProperty('--swatch', `rgb(${color.rgb.join(',')})`);
+      swatch.setAttribute('aria-hidden', 'true');
+      const label = this.ownerDocument.createElement('span');
+      label.className = 'color-label';
+      label.textContent = color.name;
+      button.append(swatch, label);
+      colorsSection.append(button);
+    });
+  }
 
-    const effectsSection = root.querySelector('.effects-section');
-    if (effectsSection) {
-      for (const preset of effects) {
-        const button = this.ownerDocument.createElement('button');
-        button.type = 'button';
-        button.className = 'effect-button';
-        const label = this.ownerDocument.createElement('span');
-        label.className = 'effect-button-text';
-        label.textContent = preset.name;
-        button.append(label);
-        button.addEventListener('click', () => this.callLight('turn_on', { effect: preset.effect }));
-        effectsSection.append(button);
-      }
+  updateEffects(effects) {
+    const layoutKey = JSON.stringify(effects.map(({ name, effect }) => [name, effect]));
+    if (this._effectLayoutKey === layoutKey) return;
+    this._effectLayoutKey = layoutKey;
+
+    const section = this.shadowRoot.querySelector('.effects-section');
+    const active = this.shadowRoot.activeElement;
+    const buttons = effects.map((preset) => {
+      const button = this.ownerDocument.createElement('button');
+      button.type = 'button';
+      button.className = 'effect-button';
+      button.dataset.effect = preset.effect;
+      const label = this.ownerDocument.createElement('span');
+      label.className = 'effect-button-text';
+      label.textContent = preset.name;
+      button.append(label);
+      return button;
+    });
+    section.replaceChildren(...buttons);
+    if (active?.matches('.effect-button') && this.light?.state === 'on' && !this._powerAction
+        && this._hass?.connected !== false) {
+      buttons.find((button) => button.dataset.effect === active.dataset.effect
+        && button.textContent === active.textContent)?.focus({ preventScroll: true });
     }
   }
 
@@ -583,38 +719,30 @@ class RgbLightButtonCard extends HTMLElement {
     this.updateCard();
   }
 
-  get lightState() {
-    return this._hass?.states[this._config?.entity]?.state;
-  }
-
-  togglePower() {
-    const state = this.lightState;
-    if (state === 'on') return this.callLight('turn_off');
-    if (state === 'off') return this.callLight('turn_on');
-  }
-
-  setBrightness(brightness) {
-    if (this.lightState !== 'on') return;
-    if (brightness === 0) return this.callLight('turn_off');
-    return this.callLight('turn_on', { brightness });
-  }
-
-  async callLight(service, data = {}) {
-    const state = this.lightState;
-    if (state !== 'on' && (state !== 'off' || Object.keys(data).length > 0)) return;
-    const action = {};
+  async callLight(service, data, { brightness, power = false } = {}) {
+    const state = this.light;
+    if (!this.isConnected || this._hass?.connected === false || !isAvailable(state) || this._powerAction
+        || (!power && state.state !== 'on')) return;
+    const action = { brightness };
     this._action = action;
+    if (power) this._powerAction = action;
+    if (brightness !== undefined) this._brightnessAction = action;
     this._errorMessage = '';
-    this.showError();
+    this.updateCard();
     try {
       await this._hass.callService('light', service, {
         entity_id: this._config.entity,
         ...data,
       });
     } catch {
-      if (this._action !== action) return;
-      this._errorMessage = 'Could not control this light. Try again.';
-      this.updateCard();
+      if (this._action === action) {
+        this._errorMessage = 'Could not control this light. Try again.';
+      }
+    } finally {
+      const update = [this._action, this._powerAction, this._brightnessAction].includes(action);
+      if (this._powerAction === action) this._powerAction = null;
+      if (this._brightnessAction === action) this._brightnessAction = null;
+      if (update) this.updateCard();
     }
   }
 
@@ -627,17 +755,23 @@ class RgbLightButtonCard extends HTMLElement {
 
   getCardSize() {
     if (!this._config) return 1;
-    const state = this._hass?.states[this._config.entity];
-    if (this._hass && !state) return 1;
+    const state = this.light;
+    if (this._hass && !state) return 2;
     const { hasBrightness, hasColors, effects } = this.getControls(state);
     const colorCount = this._config.colors.length;
-    const colorColumns = Math.min(colorCount, this._config.columns);
+    const colorWidth = this.shadowRoot.querySelector('.colors-section')?.clientWidth || 320;
+    const fittingColumns = Math.max(1, Math.floor((colorWidth + 10) / 54));
+    const colorColumns = Math.min(colorCount, this._config.columns, fittingColumns);
     const colorRows = hasColors ? Math.ceil(colorCount / colorColumns) : 0;
     const effectRows = Math.ceil(effects.length / 2);
-    const colorHeight = hasColors ? 28 + colorRows * (320 / colorColumns + 10) : 0;
-    const height = 80 + (this._config.title ? 55 : 0) + (hasBrightness ? 80 : 0)
+    const colorHeight = hasColors ? 28 + colorRows * (Math.max(44, colorWidth / colorColumns / 1.35) + 34) : 0;
+    const height = 80 + (this._config.title ? 55 : 0) + (hasBrightness ? 90 : 0)
       + colorHeight + (effectRows ? 28 + effectRows * 56 : 0);
     return Math.ceil(height / 50);
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6 };
   }
 }
 
