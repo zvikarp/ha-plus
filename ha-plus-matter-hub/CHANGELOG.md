@@ -10,9 +10,10 @@
 
 * configure matching command repetition by category ([fcfd201](https://github.com/zvikarp/ha-plus-matter-hub/commit/fcfd2011991e73591efc68b08a89125d688cc388))
 
-# Changelog
+The Supervisor app in this repository remains at 1.2.0. For later integration
+versions, see the maintained [HA+ Matter Hub releases](https://github.com/zvikarp/ha-plus-matter-hub/releases).
 
-## Unreleased
+## Earlier Supervisor app changes
 
 ### Added
 

@@ -9,7 +9,7 @@ A custom Home Assistant Lovelace card for controlling RGB lights with preset col
 - **Power Control**: Simple ON/OFF toggle button
 - **Preset Color Buttons**: Quick access to common colors (default colors match typical cheap LED remotes)
 - **Brightness Control**: Slider for adjusting brightness
-- **Effect Modes**: Flash, Strobe, Fade, and Smooth presets when supported by the light
+- **Effect Modes**: Up to four automatic presets from your light, or your own configured list
 - **Fully Configurable**: Customize colors, effects, and layout per light instance
 - **Works with Any RGB Light**: Use with cheap RGB strips or regular lights with limited color options
 
@@ -82,7 +82,7 @@ effects:
 | `show_effects` | boolean | true | Show effect buttons |
 | `columns` | positive integer | 4 | Maximum number of color button columns |
 | `colors` | array | Default 12 colors | Custom color buttons. Use `[]` to hide the section |
-| `effects` | array | Default 4 effects | Custom effect buttons. Use `[]` to hide the section |
+| `effects` | array | Up to four advertised effects | Custom effect buttons. Use `[]` to hide the section |
 
 ### Custom Colors Format
 
@@ -153,9 +153,13 @@ effects:
 ## Compatibility
 
 When Home Assistant reports the light's capabilities, the card only displays
-controls the light supports. If it reports an effect list, the card only shows
-configured presets with matching effect IDs. Brightness, color, and effect
-controls become available when the light is on.
+controls the light supports. When it reports an effect list, the card selects up
+to four presets automatically, preferring Flash, Strobe, Fade, and Smooth if
+available. Set `effects` explicitly to choose different presets or show more
+than four. Explicit presets use exact effect IDs and retain their configured
+order. Older integrations that omit the effect list use the four built-in
+presets when effects may be supported. Brightness, color, and effect controls
+become available when the light is on.
 
 This card works with any Home Assistant light entity that supports:
 - Basic on/off control
@@ -206,7 +210,7 @@ To try the card with a simulated light, serve this folder over HTTP and open
 
 From the repository root, run `python3 -m http.server 8000`, then open
 [the browser test page](http://localhost:8000/rgb-light-button-card/tests/browser.html).
-The tests run with a simulated Home Assistant light.
+The tests run with a simulated Home Assistant light. Pull requests affecting the card run the same page in Chrome.
 
 ## Contributing
 

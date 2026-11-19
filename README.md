@@ -6,9 +6,13 @@ Home Assistant Apps
 
 ## HA+ Matter Hub
 
-HA+ Matter Hub is maintained in its own repository as a Marketplace/HACS
-integration. Installation instructions and releases are available in
-[ha-plus-matter-hub](https://github.com/zvikarp/ha-plus-matter-hub).
+Install the maintained HA+ Matter Hub integration from its own custom repository
+in Home Assistant 2026.11 or newer. Existing installations of the Supervisor app
+can keep their Matter pairings by following the migration guide before changing
+distributions. [Integration installation and migration](https://github.com/zvikarp/ha-plus-matter-hub/blob/main/docs/Getting%20Started/Installation.md)
+
+The Supervisor app listed by this repository retains the 1.2.0 container.
+[Legacy app documentation](./ha-plus-matter-hub/DOCS.md)
 
 ## HA+ IR Mapper
 

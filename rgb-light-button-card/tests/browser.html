@@ -39,9 +39,11 @@
       fixtures.append(card);
       const calls = [];
       let serviceResult;
-      const state = (value = 'on', attributes = features, call = serviceResult) => {
+      const state = (value = 'on', attributes = features, call = serviceResult, hassOptions = {}) => {
         serviceResult = call;
         card.hass = {
+          language: 'en',
+          ...hassOptions,
           states: value === null ? {} : { [entity]: { entity_id: entity, state: value, attributes } },
           callService(domain, service, data) {
             calls.push({ domain, service, data });
@@ -54,8 +56,23 @@
       return {
         card, calls, state,
         find: (selector) => card.shadowRoot.querySelector(selector),
+        visible: (selector) => [...card.shadowRoot.querySelectorAll(selector)]
+          .filter((element) => !element.closest('[hidden]')),
         all: (selector) => [...card.shadowRoot.querySelectorAll(selector)],
       };
+    }
+
+    function deferred() {
+      let resolve;
+      let reject;
+      const promise = new Promise((finish, fail) => { resolve = finish; reject = fail; });
+      return { promise, resolve, reject };
+    }
+
+    function changeBrightness(slider, value) {
+      slider.value = value;
+      slider.dispatchEvent(new Event('input'));
+      slider.dispatchEvent(new Event('change'));
     }
 
     async function test(name, check) {
@@ -149,7 +166,8 @@
     await test('Missing entity recovers when its state becomes available', () => {
       const { state, find } = makeCard();
       state(null);
-      assert(find('[role="status"]').textContent.includes(entity));
+      assert(find('.entity-state').textContent === 'Entity not found');
+      assert(find('.entity-name').textContent === entity);
       state();
       assert(find('.power-button') && !find('.power-button').disabled);
     });
@@ -232,17 +250,17 @@
     });
 
     await test('Light modes control brightness and color availability independently', () => {
-      const { state, find } = makeCard();
+      const { state, visible } = makeCard();
       state('on', { supported_color_modes: ['onoff'], effect_list: [] });
-      assert(!find('.brightness-slider') && !find('.color-button'));
+      assert(!visible('.brightness-slider').length && !visible('.color-button').length);
       state('on', { supported_color_modes: ['color_temp'], brightness: 128, effect_list: [] });
-      assert(find('.brightness-slider') && !find('.color-button'));
+      assert(visible('.brightness-slider').length && !visible('.color-button').length);
       for (const mode of ['rgb', 'rgbw', 'rgbww', 'hs', 'xy']) {
         state('on', { supported_color_modes: [mode], brightness: 128 });
-        assert(find('.brightness-slider') && find('.color-button'), mode);
+        assert(visible('.brightness-slider').length && visible('.color-button').length, mode);
       }
       state('on', { brightness: 128 });
-      assert(find('.brightness-slider') && find('.color-button'), 'Legacy mode information is optional');
+      assert(visible('.brightness-slider').length && visible('.color-button').length, 'Mode metadata is optional');
     });
 
     await test('Effect IDs match advertised effects, with a legacy fallback', () => {
@@ -263,11 +281,11 @@
         { colors: [], effects: [] }, { colors: [], show_effects: false },
         { show_effects: false, show_brightness: false },
       ]) {
-        const { all } = makeCard(config);
-        assert(all('.section-divider').length === 0);
+        const { visible } = makeCard(config);
+        assert(visible('.section-divider').length === 0);
       }
-      const { all } = makeCard({ show_effects: false });
-      assert(all('.section-divider').length === 1);
+      const { visible } = makeCard({ show_effects: false });
+      assert(visible('.section-divider').length === 1);
     });
 
     await test('Power and slider have accessible names and values', () => {
@@ -310,9 +328,9 @@
       let rejectOldAction;
       let rejectOnUpdate;
       state('on', features, () => new Promise((resolve, reject) => { rejectOldAction = reject; }));
-      find('.power-button').click();
-      state('on', features, () => new Promise((resolve, reject) => { rejectOnUpdate = reject; }));
       find('.color-button').click();
+      state('on', features, () => new Promise((resolve, reject) => { rejectOnUpdate = reject; }));
+      find('.effect-button').click();
       rejectOldAction(new Error('Old action failed'));
       await Promise.resolve();
       assert(find('[role="alert"]').textContent === '');
@@ -344,6 +362,249 @@
       await import('../rgb-light-button-card.js?duplicate');
       assert(customElements.get('rgb-light-button-card') === component);
       assert(window.customCards.filter((card) => card.type === 'rgb-light-button-card').length === 1);
+    });
+
+    await test('Connection loss is announced and cached state cannot send commands', () => {
+      const { state, visible, find, calls } = makeCard();
+      state('on', features, undefined, { connected: false });
+      assert(find('.entity-state').textContent.includes('Reconnecting'));
+      for (const control of visible('button, input')) {
+        assert(control.disabled);
+        control.click();
+      }
+      assert(calls.length === 0);
+      state('on', features, undefined, { connected: true });
+      find('.color-button').click();
+      assert(calls.length === 1);
+    });
+
+    await test('A previous connection cannot block controls or report an old failure', async () => {
+      const { state, find, calls } = makeCard();
+      const old = deferred();
+      state('on', features, () => old.promise, { connection: {} });
+      find('.power-button').click();
+      state('on', features, () => {}, { connection: {} });
+      find('.power-button').click();
+      old.reject(new Error('Old connection'));
+      await Promise.resolve();
+      assert(calls.length === 2);
+      assert(find('[role="alert"]').textContent === '');
+    });
+
+    await test('Failures from a removed entity stay cleared after it returns', async () => {
+      const { state, find } = makeCard();
+      const old = deferred();
+      state('on', features, () => old.promise);
+      find('.color-button').click();
+      state(null);
+      state('on', features);
+      old.reject(new Error('Device removed'));
+      await Promise.resolve();
+      assert(find('[role="alert"]').textContent === '');
+    });
+
+    await test('Repeated presses and adjustments cannot race a pending power transition', async () => {
+      const { card, state, find, calls } = makeCard();
+      const request = deferred();
+      state('on', features, () => request.promise);
+      const power = find('.power-button');
+      power.focus();
+      power.click();
+      power.click();
+      find('.color-button').click();
+      find('.effect-button').click();
+      changeBrightness(find('.brightness-slider'), 200);
+      assert(calls.length === 1);
+      assert(power.getAttribute('aria-disabled') === 'true' && card.shadowRoot.activeElement === power);
+      request.resolve();
+      await Promise.resolve();
+      assert(power.getAttribute('aria-disabled') === 'false');
+    });
+
+    await test('Unchanged Home Assistant snapshots do not revert submitted brightness while it is pending', async () => {
+      const { state, find } = makeCard();
+      const request = deferred();
+      state('on', features, () => request.promise);
+      const slider = find('.brightness-slider');
+      changeBrightness(slider, 200);
+      state();
+      assert(slider.value === '200');
+      state('on', { ...features, brightness: 199 });
+      request.resolve();
+      await Promise.resolve();
+      assert(slider.value === '199');
+    });
+
+    await test('An earlier brightness failure cannot clear a newer pending value', async () => {
+      const { state, find } = makeCard();
+      const first = deferred();
+      const second = deferred();
+      const slider = find('.brightness-slider');
+      state('on', features, () => first.promise);
+      changeBrightness(slider, 180);
+      state('on', features, () => second.promise);
+      changeBrightness(slider, 220);
+      first.reject(new Error('Earlier request failed'));
+      await Promise.resolve();
+      assert(slider.value === '220');
+      assert(find('[role="alert"]').textContent === '');
+      second.reject(new Error('Latest request failed'));
+      await Promise.resolve();
+      assert(slider.value === '128' && find('[role="alert"]').textContent);
+    });
+
+    await test('Controls from a removed layout cannot issue commands for a replacement card configuration', () => {
+      const { card, find, calls } = makeCard();
+      const oldColor = find('.color-button');
+      const oldSlider = find('.brightness-slider');
+      card.setConfig({ entity, colors: [{ name: 'Blue', rgb: [0, 0, 255] }] });
+      oldColor.click();
+      changeBrightness(oldSlider, 200);
+      assert(calls.length === 0);
+      find('.color-button').querySelector('.color-label').click();
+      assert(calls[0].data.rgb_color.join() === '0,0,255');
+    });
+
+    await test('Changing effects leaves the focused range and its in-progress value intact', () => {
+      const { card, state, find } = makeCard();
+      const slider = find('.brightness-slider');
+      slider.focus();
+      slider.value = 200;
+      slider.dispatchEvent(new Event('input'));
+      state('on', { ...features, effect_list: ['fade', 'Breathe'] });
+      assert(find('.brightness-slider') === slider && slider.value === '200');
+      assert(card.shadowRoot.activeElement === slider);
+    });
+
+    await test('A surviving effect keeps focus when the effect list changes', () => {
+      const { card, state, find } = makeCard();
+      find('.effect-button').focus();
+      state('on', { ...features, effect_list: ['Breathe', 'fade'] });
+      assert(card.shadowRoot.activeElement?.dataset.effect === 'fade');
+    });
+
+    await test('When a focused adjustment disappears, the power toggle receives focus', async () => {
+      const { card, state, find } = makeCard();
+      const slider = find('.brightness-slider');
+      slider.focus();
+      changeBrightness(slider, 0);
+      assert(card.shadowRoot.activeElement === find('.power-button'));
+      await Promise.resolve();
+      slider.focus();
+      state('on', { supported_color_modes: ['onoff'] });
+      assert(card.shadowRoot.activeElement === find('.power-button'));
+    });
+
+    await test('Legacy flags distinguish switch-only, dimmable, and color lights', () => {
+      const { state, visible } = makeCard();
+      for (const [flags, dimmable, color] of [[0, false, false], [1, true, false], [2, true, false],
+        [4, false, false], [16, true, true], [128, true, false]]) {
+        state('on', { supported_features: flags });
+        assert(Boolean(visible('.brightness-slider').length) === dimmable, `Brightness with flags ${flags}`);
+        assert(Boolean(visible('.color-button').length) === color, `Color with flags ${flags}`);
+      }
+      state('on', { supported_features: 0, supported_color_modes: ['rgb'] });
+      assert(visible('.color-button').length);
+    });
+
+    await test('The picker recognizes legacy RGB and prefers an available light', () => {
+      const component = customElements.get('rgb-light-button-card');
+      const switchOnly = { entity_id: 'light.simple', state: 'on', attributes: { supported_features: 0 } };
+      const offline = { entity_id: 'light.offline', state: 'unavailable', attributes: features };
+      const legacy = { entity_id: 'light.legacy', state: 'off', attributes: { supported_features: 16 } };
+      const states = [offline, switchOnly, legacy];
+      const pick = (lights) => component.getStubConfig({
+        states: Object.fromEntries(lights.map((state) => [state.entity_id, state])),
+      }).entity;
+      assert(pick(states) === legacy.entity_id);
+      assert(pick([offline, switchOnly]) === switchOnly.entity_id);
+    });
+
+    await test('Automatic presets discover exact IDs, remove invalid entries, and stay compact', () => {
+      const { all, state, calls } = makeCard();
+      state('on', { ...features, effect_list: ['Rainbow', 'Rainbow', null, ' ', 42, 'Breathe',
+        'fade', 'Ocean', 'Fire', 'Confetti'] });
+      const buttons = all('.effect-button');
+      assert(buttons.map((button) => button.textContent).join('|') === 'Fade|Rainbow|Breathe|Ocean');
+      buttons[1].click();
+      assert(calls[0].data.effect === 'Rainbow', 'The service must receive the exact ID');
+    });
+
+    await test('Explicit effect presets keep their order and can exceed the automatic limit', () => {
+      const custom = ['E', 'D', 'A', 'B', 'C'].map((effect) => ({ name: `Custom ${effect}`, effect }));
+      const { all, state } = makeCard({ effects: custom });
+      state('on', { ...features, effect_list: ['A', 'B', 'C', 'D', 'E', 'other'] });
+      assert(all('.effect-button').map((button) => button.textContent).join('|')
+        === 'Custom E|Custom D|Custom A|Custom B|Custom C');
+    });
+
+    await test('Current color and effect are indicated using reported state', () => {
+      const { state, find, all } = makeCard();
+      state('on', { ...features, rgb_color: [255, 0, 0], effect: 'fade' });
+      assert(all('.color-button[aria-pressed="true"]').map((button) => button.textContent).join() === 'Red');
+      assert(find('.effect-button').getAttribute('aria-pressed') === 'true');
+      state('on', { ...features, rgb_color: [12, 34, 56], effect: 'unknown effect' });
+      assert(!find('.color-button[aria-pressed="true"]') && !find('.effect-button[aria-pressed="true"]'));
+    });
+
+    await test('Color swatches show their names and fit narrow cards with usable hit areas', () => {
+      const { card, find, all } = makeCard({ columns: 12 });
+      card.style.width = '192px';
+      const buttons = all('.color-button');
+      const grid = find('.colors-section');
+      assert(buttons[0].textContent === 'Red' && buttons[0].querySelector('.color-label').offsetHeight > 0);
+      assert(buttons.at(-1).offsetTop > buttons[0].offsetTop);
+      for (const button of buttons) {
+        assert(button.getBoundingClientRect().width >= 44);
+        assert(button.getBoundingClientRect().right <= grid.getBoundingClientRect().right + 1);
+      }
+      assert(find('.brightness-slider').getBoundingClientRect().height >= 44);
+    });
+
+    await test('Sections can resize the card without allowing unusably narrow widths', () => {
+      const { card } = makeCard();
+      const options = card.getGridOptions();
+      assert(options.columns === 12 && options.min_columns === 6 && options.rows === undefined);
+    });
+
+    await test('Home Assistant supplies control labels, brightness formatting, and display names', () => {
+      const { state, find } = makeCard();
+      const translations = {
+        'ui.card.light.brightness': 'Luminosité',
+        'ui.card.media_player.power': 'Alimentation',
+        'ui.dialogs.more_info_control.light.color': 'Couleur',
+        'ui.panel.lovelace.editor.features.types.light-effect.effects': 'Effets',
+      };
+      const formatStateName = (value) => {
+        assert(value.entity_id === entity);
+        return 'Lampe personnalisée';
+      };
+      state('on', features, undefined, {
+        language: 'en',
+        locale: { language: 'fr' },
+        localize: (key) => translations[key],
+        formatEntityName: formatStateName,
+      });
+      const percent = new Intl.NumberFormat('fr', { style: 'percent' }).format(128 / 255);
+      assert(find('.entity-name').textContent === 'Lampe personnalisée');
+      assert(find('.entity-state').textContent.includes(percent));
+      assert(find('.brightness-label').textContent === 'Luminosité');
+      assert(find('.brightness-slider').getAttribute('aria-valuetext') === percent);
+      assert(find('.power-button').getAttribute('aria-label') === 'Alimentation');
+      assert(find('#colors').textContent === 'Couleur' && find('#effects').textContent === 'Effets');
+      state();
+      assert(find('.brightness-slider').getAttribute('aria-valuetext') === '50%');
+    });
+
+    await test('First load is distinguishable from a missing entity', () => {
+      const card = document.createElement('rgb-light-button-card');
+      fixtures.append(card);
+      card.setConfig({ entity, title: 'Bedroom' });
+      const root = card.shadowRoot;
+      assert(root.querySelector('.card-header').textContent === 'Bedroom');
+      assert(root.querySelector('.entity-state').textContent === 'Loading…');
+      card.hass = { states: {} };
+      assert(root.querySelector('.entity-state').textContent === 'Entity not found');
     });
 
     const summary = document.querySelector('#summary');
