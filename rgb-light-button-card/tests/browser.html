@@ -47,7 +47,7 @@
           states: value === null ? {} : { [entity]: { entity_id: entity, state: value, attributes } },
           callService(domain, service, data) {
             calls.push({ domain, service, data });
-            return serviceResult?.();
+            return serviceResult?.(domain, service, data);
           },
         };
       };
@@ -67,6 +67,10 @@
       let reject;
       const promise = new Promise((finish, fail) => { resolve = finish; reject = fail; });
       return { promise, resolve, reject };
+    }
+
+    async function settle() {
+      for (let index = 0; index < 8; index++) await Promise.resolve();
     }
 
     function changeBrightness(slider, value) {
@@ -127,7 +131,7 @@
       }
     });
 
-    await test('Caller changes cannot replace the already displayed presets', () => {
+    await test('Caller changes cannot replace the already displayed presets', async () => {
       const color = { name: 'Red', rgb: [255, 0, 0] };
       const preset = { name: 'Fade', effect: 'fade' };
       const { find, calls } = makeCard({ colors: [color], effects: [preset] });
@@ -135,6 +139,7 @@
       preset.effect = 'other';
       find('.color-button').click();
       find('.effect-button').click();
+      await settle();
       assert(calls[0].data.rgb_color.join() === '255,0,0');
       assert(calls[1].data.effect === 'fade');
     });
@@ -228,7 +233,7 @@
       }
       assert(calls.length === 0);
       find('.power-button').click();
-      assert(calls[0].service === 'turn_on' && calls[0].data.entity_id === entity);
+      assert(calls[0].service === 'toggle' && calls[0].data.entity_id === entity);
     });
 
     await test('Missing or invalid brightness does not imply zero for an on light', () => {
@@ -316,7 +321,7 @@
         if (reject) return Promise.reject(new Error('Disconnected'));
       });
       find('.power-button').click();
-      await Promise.resolve();
+      await settle();
       assert(find('[role="alert"]').textContent.includes('Try again'));
       reject = false;
       find('.power-button').click();
@@ -332,11 +337,11 @@
       state('on', features, () => new Promise((resolve, reject) => { rejectOnUpdate = reject; }));
       find('.effect-button').click();
       rejectOldAction(new Error('Old action failed'));
-      await Promise.resolve();
+      await settle();
       assert(find('[role="alert"]').textContent === '');
-      card.setConfig({ entity, title: 'Reconfigured' });
+      card.setConfig({ entity: 'light.replacement', title: 'Reconfigured' });
       rejectOnUpdate(new Error('Old configuration failed'));
-      await Promise.resolve();
+      await settle();
       assert(find('[role="alert"]').textContent === '');
     });
 
@@ -386,7 +391,7 @@
       state('on', features, () => {}, { connection: {} });
       find('.power-button').click();
       old.reject(new Error('Old connection'));
-      await Promise.resolve();
+      await settle();
       assert(calls.length === 2);
       assert(find('[role="alert"]').textContent === '');
     });
@@ -399,7 +404,7 @@
       state(null);
       state('on', features);
       old.reject(new Error('Device removed'));
-      await Promise.resolve();
+      await settle();
       assert(find('[role="alert"]').textContent === '');
     });
 
@@ -417,7 +422,7 @@
       assert(calls.length === 1);
       assert(power.getAttribute('aria-disabled') === 'true' && card.shadowRoot.activeElement === power);
       request.resolve();
-      await Promise.resolve();
+      await settle();
       assert(power.getAttribute('aria-disabled') === 'false');
     });
 
@@ -431,7 +436,7 @@
       assert(slider.value === '200');
       state('on', { ...features, brightness: 199 });
       request.resolve();
-      await Promise.resolve();
+      await settle();
       assert(slider.value === '199');
     });
 
@@ -445,11 +450,11 @@
       state('on', features, () => second.promise);
       changeBrightness(slider, 220);
       first.reject(new Error('Earlier request failed'));
-      await Promise.resolve();
+      await settle();
       assert(slider.value === '220');
       assert(find('[role="alert"]').textContent === '');
       second.reject(new Error('Latest request failed'));
-      await Promise.resolve();
+      await settle();
       assert(slider.value === '128' && find('[role="alert"]').textContent);
     });
 
@@ -489,7 +494,7 @@
       slider.focus();
       changeBrightness(slider, 0);
       assert(card.shadowRoot.activeElement === find('.power-button'));
-      await Promise.resolve();
+      await settle();
       slider.focus();
       state('on', { supported_color_modes: ['onoff'] });
       assert(card.shadowRoot.activeElement === find('.power-button'));
@@ -605,6 +610,223 @@
       assert(root.querySelector('.entity-state').textContent === 'Loading…');
       card.hass = { states: {} };
       assert(root.querySelector('.entity-state').textContent === 'Entity not found');
+    });
+
+
+    await test('Regression: WebKit paints the range track', () => {
+      const { find } = makeCard();
+      const styles = [...find('style').sheet.cssRules].map((rule) => rule.selectorText);
+      assert(styles.includes('.brightness-slider::-webkit-slider-runnable-track'), 'No supported WebKit track rule');
+    });
+
+    await test('Regression: measured masonry size includes wrapped titles and labels', () => {
+      const { card, find } = makeCard({ title: 'Long bedroom title '.repeat(12) });
+      card.style.cssText = 'width: 280px; font: 16px sans-serif';
+      const actual = find('ha-card').getBoundingClientRect().height;
+      assert(card.getCardSize() * 50 >= actual, `Estimate ${card.getCardSize() * 50}px < actual ${actual}px`);
+    });
+
+    await test('Regression: percentage formatting follows the number preference independently of language', () => {
+      const { state, find } = makeCard();
+      for (const [number_format, locale] of [['comma_decimal', 'en-US'], ['decimal_comma', 'de'],
+        ['space_comma', 'fr'], ['quote_decimal', 'de-CH'], ['none', 'en-US'], ['system', undefined]]) {
+        state('on', features, undefined, { locale: { language: 'ar', number_format } });
+        const expected = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(128 / 255);
+        assert(find('.brightness-value').textContent === expected, `Ignored ${number_format}`);
+      }
+    });
+
+    await test('Regression: pending brightness never overrides a confirmed off state', async () => {
+      const { state, find } = makeCard();
+      const request = deferred();
+      state('on', features, () => request.promise);
+      changeBrightness(find('.brightness-slider'), 220);
+      state('off');
+      assert(find('.brightness-slider').value === '0', 'Off light retained pending brightness');
+      assert(find('.brightness-value').textContent === '0%');
+      request.resolve();
+      await settle();
+    });
+
+    await test('Regression: power waits for an earlier adjustment to finish', async () => {
+      const { state, find, calls } = makeCard();
+      const request = deferred();
+      state('on', features, () => request.promise);
+      changeBrightness(find('.brightness-slider'), 220);
+      find('.power-button').click();
+      assert(calls.length === 1, 'Power raced the earlier turn_on request');
+      request.resolve();
+      await settle();
+      assert(calls.length === 2 && calls[1].service === 'toggle');
+    });
+
+    await test('Regression: power toggles server state when its snapshot lags completed requests', async () => {
+      const { state, find } = makeCard();
+      let serverOn = true;
+      state('on', features, (_domain, service) => {
+        serverOn = service === 'toggle' ? !serverOn : service === 'turn_on';
+      });
+      find('.power-button').click();
+      await settle();
+      find('.power-button').click();
+      await settle();
+      assert(serverOn, 'Two presses with stale state left the light off');
+    });
+
+    await test('Regression: presentation edits preserve a pending power lock', async () => {
+      const { card, state, find, calls } = makeCard();
+      const request = deferred();
+      state('on', features, () => request.promise);
+      find('.power-button').click();
+      card.setConfig({ entity, title: 'Renamed during request' });
+      find('.power-button').click();
+      assert(calls.length === 1, 'Title edit discarded in-flight power lock');
+      request.resolve();
+      await settle();
+    });
+
+    await test('Regression: keyboard focus stays on the card when every control becomes unavailable', () => {
+      const { card, state, find } = makeCard();
+      find('.color-button').focus();
+      state('unavailable');
+      assert(card.shadowRoot.activeElement === find('ha-card'), 'Focus left on a disabled control or lost');
+      state('on');
+      assert(card.shadowRoot.activeElement === find('.power-button'), 'Focus did not recover to power');
+    });
+
+    await test('Regression: empty or unknown color modes use explicit legacy capabilities', () => {
+      const { state, visible } = makeCard();
+      for (const supported_color_modes of [[], ['unknown']]) {
+        state('on', { supported_color_modes, supported_features: 0 });
+        assert(!visible('.brightness-slider').length && !visible('.color-button').length, 'Unsupported controls exposed');
+        state('on', { supported_color_modes, supported_features: 16 });
+        assert(visible('.brightness-slider').length && visible('.color-button').length);
+      }
+    });
+
+    await test('Regression: an identical configuration preserves an active slider edit and focus', () => {
+      const { card, find } = makeCard();
+      const slider = find('.brightness-slider');
+      slider.focus();
+      slider.value = 210;
+      slider.dispatchEvent(new Event('input'));
+      card.setConfig({ entity });
+      assert(find('.brightness-slider') === slider, 'Unchanged config replaced the live input');
+      assert(slider.value === '210' && card.shadowRoot.activeElement === slider);
+    });
+
+
+    await test('Ordered adjustments cannot leave an older brightness as the final device value', async () => {
+      const { state, find, calls } = makeCard();
+      const first = deferred();
+      let serverBrightness = 128;
+      state('on', features, async (_domain, _service, data) => {
+        if (data.brightness === 180) await first.promise;
+        serverBrightness = data.brightness;
+      });
+      changeBrightness(find('.brightness-slider'), 180);
+      changeBrightness(find('.brightness-slider'), 220);
+      assert(calls.length === 1, 'Newer adjustment overtook unfinished request');
+      first.resolve();
+      await settle();
+      assert(calls.length === 2 && serverBrightness === 220);
+    });
+
+    await test('Changing entities discards queued commands and late failures', async () => {
+      const { card, state, find, calls } = makeCard();
+      const first = deferred();
+      state('on', features, () => first.promise);
+      find('.color-button').click();
+      find('.effect-button').click();
+      card.setConfig({ entity: 'light.replacement' });
+      first.reject(new Error('Old light failed'));
+      await settle();
+      assert(calls.length === 1 && find('[role="alert"]').textContent === '');
+    });
+
+    await test('Disconnect discards queued work without blocking requests on the new connection', async () => {
+      const { state, find, calls } = makeCard();
+      const first = deferred();
+      const connection = {};
+      state('on', features, () => first.promise, { connection });
+      find('.color-button').click();
+      find('.effect-button').click();
+      state('on', features, () => {}, { connection, connected: false });
+      state('on', features, () => {}, { connection, connected: true });
+      find('.power-button').click();
+      await settle();
+      assert(calls.length === 2 && calls[1].service === 'toggle');
+      first.reject(new Error('Old connection failed'));
+      await settle();
+      assert(calls.length === 2 && find('[role="alert"]').textContent === '');
+    });
+
+    await test('A queued adjustment is discarded if the light has since been switched off', async () => {
+      const { state, find, calls } = makeCard();
+      const first = deferred();
+      state('on', features, () => first.promise);
+      find('.color-button').click();
+      find('.effect-button').click();
+      state('off');
+      first.resolve();
+      await settle();
+      assert(calls.length === 1, 'Queued effect turned the light back on');
+    });
+
+    await test('Unavailable focus fallback does not steal focus from another dashboard control', () => {
+      const { card, state } = makeCard();
+      const other = document.createElement('button');
+      fixtures.append(other);
+      other.focus();
+      state('unavailable');
+      state('on');
+      assert(document.activeElement === other && card.shadowRoot.activeElement === null);
+    });
+
+    await test('Preview handles power toggles and brightness off using the actual card module', async () => {
+      const frame = document.createElement('iframe');
+      const ready = new Promise((resolve) => { frame.onload = resolve; });
+      frame.src = '../preview.html';
+      fixtures.append(frame);
+      await ready;
+      const card = frame.contentDocument.querySelector('rgb-light-button-card');
+      const root = card.shadowRoot;
+      root.querySelector('.power-button').click();
+      await settle();
+      assert(root.querySelector('.entity-state-label').textContent === 'Off');
+      root.querySelector('.power-button').click();
+      await settle();
+      assert(root.querySelector('.entity-state-label').textContent === 'On');
+      changeBrightness(root.querySelector('.brightness-slider'), 0);
+      await settle();
+      assert(root.querySelector('.entity-state-label').textContent === 'Off');
+    });
+
+
+    await test('An off/on cycle cannot replay old queued adjustments or resurrect pending brightness', async () => {
+      const { state, find, calls } = makeCard();
+      const first = deferred();
+      state('on', features, () => first.promise);
+      changeBrightness(find('.brightness-slider'), 220);
+      find('.effect-button').click();
+      state('off');
+      state('on', { ...features, brightness: 100 });
+      assert(find('.brightness-slider').value === '100');
+      first.reject(new Error('Old adjustment failed'));
+      await settle();
+      assert(calls.length === 1 && find('[role="alert"]').textContent === '');
+    });
+
+    await test('Queued effects are rechecked when the light stops advertising them', async () => {
+      const { state, find, calls } = makeCard();
+      const first = deferred();
+      state('on', features, () => first.promise);
+      find('.color-button').click();
+      find('.effect-button').click();
+      state('on', { ...features, effect_list: [] });
+      first.resolve();
+      await settle();
+      assert(calls.length === 1);
     });
 
     const summary = document.querySelector('#summary');
