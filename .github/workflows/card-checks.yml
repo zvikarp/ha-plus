@@ -39,3 +39,18 @@ jobs:
             --virtual-time-budget=10000 --dump-dom "$page" > "$results"
           grep -Eo '<p id="summary"[^>]*>[^<]*</p>|<li>FAIL [^<]*</li>' "$results"
           grep -Eq 'id="summary"[^>]*data-status="pass"' "$results"
+
+          google-chrome --headless --disable-dev-shm-usage --hide-scrollbars \
+            --user-data-dir="$RUNNER_TEMP/ha-plus-card-chrome" \
+            --window-size=390,1100 --virtual-time-budget=1000 \
+            --screenshot="$RUNNER_TEMP/ha-plus-card-preview.png" \
+            http://127.0.0.1:8742/rgb-light-button-card/preview.html
+      - name: Save browser results and preview
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rgb-card-browser-evidence
+          path: |
+            ${{ runner.temp }}/ha-plus-card-results.html
+            ${{ runner.temp }}/ha-plus-card-preview.png
+          if-no-files-found: error
