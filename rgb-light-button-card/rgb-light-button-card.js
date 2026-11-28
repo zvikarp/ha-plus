@@ -23,7 +23,7 @@ function lightCapabilities({ supported_color_modes: modes, supported_features: f
       brightness: modes.some((mode) => BRIGHTNESS_MODES.includes(mode)),
     };
   }
-  if (!Array.isArray(modes) && Number.isInteger(flags)) {
+  if (Number.isInteger(flags)) {
     return { color: Boolean(flags & LEGACY_COLOR), brightness: Boolean(flags & LEGACY_BRIGHTNESS) };
   }
   return {};
@@ -71,7 +71,12 @@ class RgbLightButtonCard extends HTMLElement {
   set hass(hass) {
     const previous = this._hass;
     const wasAvailable = isAvailable(this.light);
+    const wasOn = this.light?.state === 'on';
     this._hass = hass;
+    if (wasOn && this.light?.state !== 'on') {
+      this._adjustmentGeneration++;
+      this._brightnessAction = null;
+    }
     if (previous && (!hass || hass.connected === false
         || (previous.connection && previous.connection !== hass.connection)
         || (wasAvailable && !isAvailable(this.light)))) {
@@ -81,6 +86,9 @@ class RgbLightButtonCard extends HTMLElement {
   }
 
   resetCommands() {
+    this._commandGeneration = (this._commandGeneration ?? 0) + 1;
+    this._commandTail = null;
+    this._adjustmentGeneration = (this._adjustmentGeneration ?? 0) + 1;
     this._action = null;
     this._powerAction = null;
     this._brightnessAction = null;
@@ -126,11 +134,16 @@ class RgbLightButtonCard extends HTMLElement {
       return { name: preset.name, effect: preset.effect };
     });
 
-    this._config = {
+    const nextConfig = {
       entity: config.entity, title, columns, show_brightness, show_effects,
       colors: colorPresets, effects: effectPresets,
     };
-    this.resetCommands();
+    // Editors may reapply the same configuration while a control is in use.
+    if (JSON.stringify(nextConfig) === JSON.stringify(this._config)) return;
+    const sameEntity = this._config?.entity === nextConfig.entity;
+    this._config = nextConfig;
+    if (!sameEntity) this.resetCommands();
+    this._brightnessDraft = null;
     this.render();
     this.updateCard();
   }
@@ -170,10 +183,16 @@ class RgbLightButtonCard extends HTMLElement {
   }
 
   formatBrightness(brightness) {
-    const language = this._hass?.locale?.language ?? this._hass?.language;
-    if (!this._percentFormatter || this._percentLanguage !== language) {
-      this._percentLanguage = language;
-      this._percentFormatter = new Intl.NumberFormat(language, {
+    const { language = this._hass?.language, number_format } = this._hass?.locale ?? {};
+    // Follow Home Assistant's number-format preference independently of UI language.
+    const locales = {
+      comma_decimal: 'en-US', decimal_comma: 'de', space_comma: 'fr',
+      quote_decimal: 'de-CH', none: 'en-US',
+    };
+    const locale = number_format === 'system' ? undefined : locales[number_format] ?? language;
+    if (!this._percentFormatter || this._percentLocale !== locale) {
+      this._percentLocale = locale;
+      this._percentFormatter = new Intl.NumberFormat(locale, {
         style: 'percent', maximumFractionDigits: 0,
       });
     }
@@ -253,12 +272,14 @@ class RgbLightButtonCard extends HTMLElement {
       button.setAttribute('aria-pressed', String(isOn && button.dataset.effect === attributes.effect));
     }
     const active = root.activeElement;
-    if (!power.disabled && focused && (!active
-        || (active === focused && (active.disabled || active.closest('[hidden]'))))) {
+    const card = root.querySelector('ha-card');
+    if (focused && (!active || (active === focused && (active.disabled || active.closest('[hidden]'))))) {
+      (power.disabled ? card : power).focus({ preventScroll: true });
+    } else if (active === card && !power.disabled) {
       power.focus({ preventScroll: true });
     }
-    this.updateBrightness(this._brightnessDraft ?? this._brightnessAction?.brightness
-      ?? (state?.state === 'off' ? 0 : brightness));
+    this.updateBrightness(state?.state === 'off' ? 0
+      : this._brightnessDraft ?? this._brightnessAction?.brightness ?? brightness);
     this.showError();
   }
 
@@ -405,7 +426,7 @@ class RgbLightButtonCard extends HTMLElement {
           background: transparent;
           cursor: pointer;
         }
-        .brightness-slider::-webkit-slider-track {
+        .brightness-slider::-webkit-slider-runnable-track {
           width: 100%;
           height: 6px;
           background: var(--disabled-color, rgba(0, 0, 0, 0.12));
@@ -589,13 +610,13 @@ class RgbLightButtonCard extends HTMLElement {
         }
       </style>
       
-      <ha-card>
+      <ha-card tabindex="-1" role="group" aria-labelledby="entity-name" aria-describedby="entity-state">
         ${this._config.title ? '<div class="card-header"></div>' : ''}
         <div class="card-content">
           <div class="control-section">
             <div class="entity-info">
-              <div class="entity-name"></div>
-              <div class="entity-state"><span class="entity-state-label" role="status"></span><span class="entity-brightness"></span></div>
+              <div id="entity-name" class="entity-name"></div>
+              <div id="entity-state" class="entity-state"><span class="entity-state-label" role="status"></span><span class="entity-brightness"></span></div>
             </div>
             <button class="power-button" type="button" aria-label="Power">
               <svg class="power-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -636,7 +657,7 @@ class RgbLightButtonCard extends HTMLElement {
       const button = event.target.closest('button');
       if (!button || button.getRootNode() !== root || button.disabled || this._powerAction) return;
       if (button.matches('.power-button')) {
-        this.callLight(this.light.state === 'on' ? 'turn_off' : 'turn_on', {}, { power: true });
+        this.callLight('toggle', {}, { power: true });
       } else if (button.matches('.color-button')) {
         const color = this._config.colors[Number(button.dataset.index)];
         this.callLight('turn_on', { rgb_color: [...color.rgb] });
@@ -724,21 +745,41 @@ class RgbLightButtonCard extends HTMLElement {
     if (!this.isConnected || this._hass?.connected === false || !isAvailable(state) || this._powerAction
         || (!power && state.state !== 'on')) return;
     const action = { brightness };
+    const generation = this._commandGeneration;
+    const adjustmentGeneration = this._adjustmentGeneration;
+    const predecessor = this._commandTail;
+    let complete;
+    const completion = new Promise((resolve) => { complete = resolve; });
+    this._commandTail = completion;
+    const hass = this._hass;
+    const entityId = this._config.entity;
     this._action = action;
     if (power) this._powerAction = action;
     if (brightness !== undefined) this._brightnessAction = action;
     this._errorMessage = '';
     this.updateCard();
     try {
-      await this._hass.callService('light', service, {
-        entity_id: this._config.entity,
+      // Preserve input order: an older turn_on must finish before a later power-off.
+      if (predecessor) await predecessor;
+      if (generation !== this._commandGeneration || !this.isConnected
+          || this._hass?.connected === false || !isAvailable(this.light)
+          || (!power && (this.light.state !== 'on'
+            || adjustmentGeneration !== this._adjustmentGeneration))) return;
+      const controls = this.getControls(this.light);
+      if ((data.brightness !== undefined && !controls.hasBrightness)
+          || (data.rgb_color && !controls.hasColors)
+          || (data.effect && !controls.effects.some((preset) => preset.effect === data.effect))) return;
+      await hass.callService('light', service, {
+        entity_id: entityId,
         ...data,
       });
     } catch {
-      if (this._action === action) {
+      if (this._action === action && (power || adjustmentGeneration === this._adjustmentGeneration)) {
         this._errorMessage = 'Could not control this light. Try again.';
       }
     } finally {
+      complete();
+      if (this._commandTail === completion) this._commandTail = null;
       const update = [this._action, this._powerAction, this._brightnessAction].includes(action);
       if (this._powerAction === action) this._powerAction = null;
       if (this._brightnessAction === action) this._brightnessAction = null;
@@ -755,6 +796,10 @@ class RgbLightButtonCard extends HTMLElement {
 
   getCardSize() {
     if (!this._config) return 1;
+    // Once laid out, include real wrapping, font sizes, gaps and service errors.
+    const card = this.shadowRoot.querySelector('ha-card');
+    const measured = card?.getBoundingClientRect().height;
+    if (measured > 0) return Math.ceil(measured / 50);
     const state = this.light;
     if (this._hass && !state) return 2;
     const { hasBrightness, hasColors, effects } = this.getControls(state);

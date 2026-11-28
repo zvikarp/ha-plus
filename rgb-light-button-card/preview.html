@@ -68,7 +68,8 @@
             delete attributes.effect;
           }
           if (effect) attributes.effect = effect;
-          light = { ...light, state: service === 'turn_off' ? 'off' : 'on', attributes };
+          const turnOff = service === 'turn_off' || (service === 'toggle' && light.state === 'on');
+          light = { ...light, state: turnOff ? 'off' : 'on', attributes };
           update();
         },
       };
